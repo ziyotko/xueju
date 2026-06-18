@@ -1,0 +1,68 @@
+<view class="page safe-bottom">
+  <view class="topbar">
+    <view class="city">北京⌄</view>
+    <view class="search">⌕ 搜索雪场 / 日期 / 关键词</view>
+    <view class="bell">⌁</view>
+  </view>
+
+  <view class="hero">
+    <image class="hero-image" mode="aspectFill" src="{{heroImage}}" />
+    <view class="hero-mask"></view>
+    <view class="hero-content">
+      <view class="hero-title">这个周末</view>
+      <view class="hero-title">找个水平差不多的人一起滑</view>
+      <view class="hero-subtitle">LET'S SKI TOGETHER</view>
+      <button class="hero-button" bindtap="goCreate">发布滑雪行程 +</button>
+    </view>
+  </view>
+
+  <view class="category-bar">
+    <view class="category active" wx:for="{{categories}}" wx:key="text">
+      <view class="category-icon">{{item.icon}}</view>
+      <view class="category-text">{{item.text}}</view>
+    </view>
+  </view>
+
+  <view class="section-tabs">
+    <view class="tab active">推荐</view>
+    <view class="tab">最新</view>
+    <view class="filter">筛选▽</view>
+  </view>
+
+  <view class="event-card card" wx:for="{{events}}" wx:key="id" data-id="{{item.id}}" bindtap="goDetail">
+    <view class="event-main">
+      <view class="event-info">
+        <view class="tag tag-green">{{item.badge}}</view>
+        <view class="event-title">{{item.resort}}</view>
+        <view class="event-date">{{item.date}}</view>
+        <view class="event-meta">{{item.depart}} · {{item.board}} · {{item.traffic}}</view>
+        <view class="tag-row">
+          <text class="tag">{{item.board}}{{item.level}}</text>
+          <text class="tag tag-soft">{{item.tagA}}</text>
+          <text class="tag tag-soft">{{item.tagB}}</text>
+        </view>
+      </view>
+      <image class="event-image" mode="aspectFill" src="{{item.image}}" />
+    </view>
+
+    <view class="event-footer">
+      <view class="avatars">
+        <view class="avatar">阿</view>
+        <view class="avatar overlap">大</view>
+        <view class="avatar overlap">鹿</view>
+      </view>
+      <view class="people">{{item.people}}</view>
+    </view>
+
+    <view class="host-row">
+      <view class="row">
+        <view class="host-avatar">{{item.hostInitial}}</view>
+        <view>
+          <view class="host-name">{{item.host}} ✓</view>
+          <view class="host-credit">{{item.credit}}</view>
+        </view>
+      </view>
+      <button class="join-button" catchtap="goDetail" data-id="{{item.id}}">加入</button>
+    </view>
+  </view>
+</view>

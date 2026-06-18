@@ -1,0 +1,140 @@
+.profile-page {
+  min-height: 100vh;
+  background: #f4f7ff;
+}
+
+.profile-hero {
+  position: relative;
+  height: 360rpx;
+}
+
+.profile-cover {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-mask {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(19, 29, 61, 0.08), rgba(244, 247, 255, 0.9));
+}
+
+.profile-avatar {
+  position: absolute;
+  left: 54rpx;
+  bottom: -56rpx;
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 50%;
+  border: 8rpx solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #26314f, #5b6cff);
+  color: #ffffff;
+  font-size: 48rpx;
+  font-weight: 900;
+}
+
+.profile-card {
+  margin: -10rpx 28rpx 22rpx;
+  padding: 82rpx 28rpx 28rpx;
+}
+
+.nickname {
+  color: #151b2c;
+  font-size: 36rpx;
+  font-weight: 900;
+}
+
+.id-line {
+  margin-top: 10rpx;
+  color: #7b8499;
+  font-size: 22rpx;
+}
+
+.bio {
+  margin-top: 20rpx;
+  color: #2f384e;
+  font-size: 25rpx;
+  line-height: 1.5;
+}
+
+.tag-row {
+  margin-top: 20rpx;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 28rpx;
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-value {
+  color: #151b2c;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.stat-label {
+  margin-top: 6rpx;
+  color: #7b8499;
+  font-size: 20rpx;
+}
+
+.info-card {
+  margin: 0 28rpx 22rpx;
+  padding: 28rpx;
+}
+
+.block-title {
+  color: #151b2c;
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.block-title.second {
+  margin-top: 28rpx;
+}
+
+.more {
+  color: #7b8499;
+  font-size: 22rpx;
+}
+
+.review {
+  margin-top: 22rpx;
+}
+
+.review-main {
+  margin-left: 16rpx;
+}
+
+.review-name {
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.review-name text {
+  margin-left: 16rpx;
+  color: #7b8499;
+  font-weight: 500;
+}
+
+.review-date {
+  margin-top: 4rpx;
+  color: #9aa3b7;
+  font-size: 20rpx;
+}
+
+.review-text {
+  margin-top: 20rpx;
+  color: #2f384e;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+

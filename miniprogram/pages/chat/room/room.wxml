@@ -1,0 +1,32 @@
+<view class="chat-page">
+  <view class="chat-notice">阿飞邀请你加入了群聊</view>
+  <view class="chat-notice">你已加入群聊</view>
+
+  <view class="message-list">
+    <view class="message-row {{item.side}}" wx:for="{{messages}}" wx:key="id">
+      <view wx:if="{{item.side === 'left'}}" class="avatar small">{{item.initial}}</view>
+      <view class="bubble {{item.system ? 'system' : ''}}">
+        <view class="sender" wx:if="{{item.side === 'left'}}">{{item.displayName}}</view>
+        <view class="content">{{item.content}}</view>
+      </view>
+      <view wx:if="{{item.side === 'right'}}" class="avatar small">我</view>
+      <text class="time">{{item.time}}</text>
+    </view>
+  </view>
+
+  <view class="input-bar">
+    <view class="voice">◉</view>
+    <input value="{{inputValue}}" bindinput="onInput" placeholder="输入消息..." />
+    <view class="emoji">☺</view>
+    <button bindtap="send">＋</button>
+  </view>
+
+  <view class="risk-tip">{{contentRiskMessage}}</view>
+
+  <view class="quick-panel">
+    <view class="quick-item" wx:for="{{quickActions}}" wx:key="text">
+      <view class="quick-icon">{{item.icon}}</view>
+      <view>{{item.text}}</view>
+    </view>
+  </view>
+</view>

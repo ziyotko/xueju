@@ -1,0 +1,42 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/event/create/create",
+    "pages/event/detail/detail",
+    "pages/trips/index/index",
+    "pages/chat/room/room",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarTitleText": "雪局行程",
+    "navigationBarBackgroundColor": "#5b6cff",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f7fb"
+  },
+  "tabBar": {
+    "color": "#7a8194",
+    "selectedColor": "#5b6cff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "发现"
+      },
+      {
+        "pagePath": "pages/trips/index/index",
+        "text": "行程"
+      },
+      {
+        "pagePath": "pages/chat/room/room",
+        "text": "消息"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}
+

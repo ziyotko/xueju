@@ -1,0 +1,122 @@
+.tabs {
+  display: flex;
+  height: 76rpx;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28rpx;
+}
+
+.trip-tab {
+  color: #7b8499;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.trip-tab.active {
+  color: #151b2c;
+  position: relative;
+}
+
+.trip-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 18rpx;
+  right: 18rpx;
+  bottom: -16rpx;
+  height: 6rpx;
+  border-radius: 6rpx;
+  background: #665cff;
+}
+
+.group-title {
+  margin: 28rpx 0 16rpx;
+  color: #151b2c;
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.trip-card {
+  display: flex;
+  gap: 22rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.trip-info {
+  flex: 1;
+}
+
+.trip-title {
+  color: #151b2c;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.trip-meta {
+  margin-top: 10rpx;
+  color: #596274;
+  font-size: 24rpx;
+}
+
+.avatars {
+  display: flex;
+  align-items: center;
+  margin-top: 22rpx;
+}
+
+.overlap {
+  margin-left: -16rpx;
+}
+
+.joined {
+  margin-left: 12rpx;
+  color: #151b2c;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.trip-image {
+  width: 150rpx;
+  height: 150rpx;
+  border-radius: 18rpx;
+}
+
+.history-card {
+  padding: 26rpx;
+  margin-bottom: 18rpx;
+}
+
+.history-date {
+  color: #7b8499;
+  font-size: 22rpx;
+}
+
+.history-title {
+  margin-top: 10rpx;
+  color: #151b2c;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.history-meta {
+  margin-top: 8rpx;
+  color: #7b8499;
+  font-size: 22rpx;
+}
+
+.floating-create {
+  position: fixed;
+  right: 32rpx;
+  bottom: 130rpx;
+  width: 232rpx;
+  height: 76rpx;
+  border: 0;
+  border-radius: 38rpx;
+  background: linear-gradient(135deg, #5965ff, #7b4cff);
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 76rpx;
+  box-shadow: 0 18rpx 38rpx rgba(91, 101, 255, 0.28);
+}
+

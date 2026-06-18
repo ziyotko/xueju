@@ -1,0 +1,182 @@
+.detail-page {
+  min-height: 100vh;
+  background: #f4f7ff;
+}
+
+.cover {
+  position: relative;
+  height: 470rpx;
+  overflow: hidden;
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+}
+
+.cover-mask {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(244, 247, 255, 0.2));
+}
+
+.cover-actions {
+  position: absolute;
+  top: 52rpx;
+  left: 26rpx;
+  right: 26rpx;
+  display: flex;
+  justify-content: space-between;
+}
+
+.round {
+  width: 58rpx;
+  height: 58rpx;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.35);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+}
+
+.content-card {
+  margin: -48rpx 28rpx 72rpx;
+  padding: 28rpx;
+  position: relative;
+}
+
+.content-card + .content-card {
+  margin-top: -48rpx;
+}
+
+.detail-title {
+  font-size: 36rpx;
+  font-weight: 900;
+  color: #151b2c;
+}
+
+.detail-sub {
+  margin-top: 12rpx;
+  color: #5c6578;
+  font-size: 24rpx;
+}
+
+.tag-row {
+  margin-top: 20rpx;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 150rpx 1fr;
+  row-gap: 24rpx;
+  margin-top: 30rpx;
+  font-size: 26rpx;
+  color: #1f2937;
+}
+
+.info-grid text:nth-child(odd) {
+  color: #6b7280;
+}
+
+.block-title {
+  margin-bottom: 22rpx;
+  color: #151b2c;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.host-avatar {
+  width: 68rpx;
+  height: 68rpx;
+  margin-right: 16rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #25314f, #4fb7ff);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.host-name {
+  color: #111827;
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.host-credit {
+  margin-top: 6rpx;
+  color: #8790a3;
+  font-size: 22rpx;
+}
+
+.follow {
+  width: 112rpx;
+  height: 58rpx;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  min-height: 82rpx;
+}
+
+.member-main {
+  flex: 1;
+  margin-left: 16rpx;
+}
+
+.member-name {
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.role {
+  color: #665cff;
+  font-size: 20rpx;
+}
+
+.member-meta,
+.member-credit {
+  color: #7b8499;
+  font-size: 22rpx;
+}
+
+.rule {
+  margin-top: 18rpx;
+  color: #3b4660;
+  font-size: 24rpx;
+}
+
+.bottom-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 122rpx;
+  padding: 18rpx 28rpx 28rpx;
+  box-sizing: border-box;
+  display: flex;
+  gap: 18rpx;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.collect {
+  width: 150rpx;
+  height: 76rpx;
+  border-radius: 22rpx;
+  background: #ffffff;
+  border: 2rpx solid #edf0f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #30384b;
+  font-size: 24rpx;
+}
+
+.apply {
+  flex: 1;
+}
+

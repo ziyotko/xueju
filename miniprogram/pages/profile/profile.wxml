@@ -1,0 +1,63 @@
+<view class="profile-page safe-bottom">
+  <view class="profile-hero">
+    <image class="profile-cover" mode="aspectFill" src="https://images.unsplash.com/photo-1551524559-8af4e6624178?auto=format&fit=crop&w=900&q=80" />
+    <view class="profile-mask"></view>
+    <view class="profile-avatar">大</view>
+  </view>
+
+  <view class="profile-card card">
+    <view class="nickname">{{nickname}} ✓</view>
+    <view class="id-line">ID：1028304　北京 · 滑雪</view>
+    <view class="bio">{{bio}}</view>
+    <view class="tag-row">
+      <text class="tag">{{level}}</text>
+      <text class="tag">单板</text>
+      <text class="tag">喜欢刷道和公园</text>
+    </view>
+
+    <view class="stat-grid">
+      <view class="stat" wx:for="{{stats}}" wx:key="label">
+        <view class="stat-value">{{item.value}}</view>
+        <view class="stat-label">{{item.label}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="info-card card">
+    <view class="block-title">认证信息</view>
+    <view class="tag-row">
+      <text class="tag tag-soft" wx:for="{{certifications}}" wx:key="*this">✓ {{item}}</text>
+    </view>
+  </view>
+
+  <view class="info-card card">
+    <view class="block-title">常去雪场</view>
+    <view class="tag-row">
+      <text class="tag tag-soft" wx:for="{{resorts}}" wx:key="*this">{{item}}</text>
+    </view>
+    <view class="block-title second">滑行风格</view>
+    <view class="tag-row">
+      <text class="tag tag-soft" wx:for="{{styles}}" wx:key="*this">{{item}}</text>
+    </view>
+  </view>
+
+  <view class="info-card card">
+    <view class="between block-head">
+      <view class="block-title">收到的评价（28）</view>
+      <view class="more">查看全部 ›</view>
+    </view>
+    <view class="review" wx:for="{{reviews}}" wx:key="name">
+      <view class="row">
+        <view class="avatar">{{item.initial}}</view>
+        <view class="review-main">
+          <view class="review-name">{{item.name}} ✓ <text>{{item.credit}}</text></view>
+          <view class="review-date">{{item.date}}</view>
+        </view>
+      </view>
+      <view class="review-text">{{item.text}}</view>
+      <view class="tag-row">
+        <text class="tag tag-green" wx:for="{{item.tags}}" wx:key="*this">{{item}}</text>
+      </view>
+    </view>
+  </view>
+</view>

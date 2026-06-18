@@ -1,0 +1,50 @@
+<view class="page safe-bottom create-page">
+  <view class="form-card card">
+    <view class="block-title">基本信息</view>
+    <view class="form-row" wx:for="{{basicRows}}" wx:key="label">
+      <text>{{item.label}}</text>
+      <view class="row-value">{{item.value}} ›</view>
+    </view>
+    <view class="form-row people-row">
+      <text>人数需求</text>
+      <view class="stepper">
+        <button bindtap="decreasePeople">−</button>
+        <text>{{form.people}}</text>
+        <button bindtap="increasePeople">＋</button>
+      </view>
+      <text class="people-hint">还缺{{form.people}}人</text>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="block-title">滑雪信息</view>
+    <view class="field-title">单 / 双板</view>
+    <view class="pill-grid">
+      <view class="pill {{index === 0 ? 'selected' : ''}}" wx:for="{{boards}}" wx:key="*this">{{item}}</view>
+    </view>
+    <view class="field-title">水平要求</view>
+    <view class="pill-grid">
+      <view class="pill {{index === 2 ? 'selected' : ''}}" wx:for="{{levels}}" wx:key="*this">{{item}}</view>
+    </view>
+    <view class="field-title">玩法标签（可多选）</view>
+    <view class="pill-grid wrap">
+      <view class="pill {{index < 2 ? 'selected' : ''}}" wx:for="{{styles}}" wx:key="*this">{{item}}</view>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="block-title">其他信息</view>
+    <view class="toggle-row" wx:for="{{toggles}}" wx:key="label">
+      <text>{{item.label}}</text>
+      <switch checked="{{item.checked}}" color="#665cff" />
+    </view>
+    <textarea class="note" maxlength="100" value="{{form.note}}" bindinput="onNoteInput" placeholder="住宿、集合和行程补充说明（选填）" />
+    <view class="counter">{{form.noteCount}}/100</view>
+  </view>
+
+  <view class="compliance-tip">{{contentRiskMessage}}</view>
+
+  <view class="fixed-submit">
+    <button class="button-primary" bindtap="submit">发布滑雪行程</button>
+  </view>
+</view>

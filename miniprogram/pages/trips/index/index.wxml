@@ -1,0 +1,35 @@
+<view class="page safe-bottom trips-page">
+  <view class="tabs">
+    <view class="trip-tab {{index === active ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="*this">{{item}}</view>
+  </view>
+
+  <view class="group-title">即将出发</view>
+  <view class="trip-card card" wx:for="{{upcoming}}" wx:key="id" data-id="{{item.id}}" bindtap="goDetail">
+    <view class="trip-info">
+      <view class="tag tag-green">{{item.badge}}</view>
+      <view class="trip-title">{{item.resort}}</view>
+      <view class="trip-meta">{{item.date}} {{item.time}}集合</view>
+      <view class="avatars">
+        <view class="avatar">阿</view>
+        <view class="avatar overlap">大</view>
+        <view class="avatar overlap">鹿</view>
+        <text class="joined">等2人加入</text>
+      </view>
+    </view>
+    <image class="trip-image" mode="aspectFill" src="{{item.image}}" />
+  </view>
+
+  <view class="group-title">更早</view>
+  <view class="history-card card">
+    <view class="history-date">12/09 周六</view>
+    <view class="history-title">云顶滑雪公园</view>
+    <view class="history-meta">独脚兽组员 · 已结束</view>
+  </view>
+  <view class="history-card card">
+    <view class="history-date">12/02 周六</view>
+    <view class="history-title">太舞滑雪小镇</view>
+    <view class="history-meta">3人同行 · 已结束</view>
+  </view>
+
+  <button class="floating-create" bindtap="goCreate">发布滑雪行程 ＋</button>
+</view>
