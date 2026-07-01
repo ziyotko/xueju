@@ -1,0 +1,2 @@
+const { getNotifications, markNotificationsRead } = require('../../utils/store')
+Page({data:{notifications:[]},onShow(){this.load()},load(){this.setData({notifications:getNotifications()})},markRead(){this.setData({notifications:markNotificationsRead()});wx.showToast({title:'已全部已读',icon:'success'})},clearAll(){wx.showModal({title:'清空通知？',success:(res)=>{if(!res.confirm)return;wx.setStorageSync('xueju_notifications_v3',[]);this.load()}})}})

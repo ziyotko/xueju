@@ -1,16 +1,42 @@
 <view class="page safe-bottom create-page">
-  <view class="form-card card">
+  <view class="form-card first-card card">
     <view class="block-title">基本信息</view>
-    <view class="form-row" wx:for="{{basicRows}}" wx:key="label">
-      <text>{{item.label}}</text>
-      <view class="row-value">{{item.value}} ›</view>
+    <view class="cover-uploader">
+      <view wx:if="{{form.image}}" class="cover-preview" bindtap="previewTripImage">
+        <image mode="aspectFill" src="{{form.image}}" />
+        <view class="cover-change">更换图片</view>
+        <view class="cover-remove" catchtap="removeTripImage">
+          <app-icon name="close" size="16" color="#FFFFFF" />
+        </view>
+      </view>
+      <view wx:else class="cover-empty" bindtap="chooseTripImage">
+        <app-icon name="image" size="28" color="#5B6CFF" />
+        <view>
+          <view class="cover-title">上传行程图片</view>
+          <view class="cover-sub">支持相册或拍照，最多 5MB</view>
+        </view>
+      </view>
+    </view>
+    <picker mode="selector" range="{{resorts}}" data-key="resort" data-list="resorts" bindchange="setPicker">
+      <view class="form-row"><text>目的地</text><view class="row-value"><text>{{form.resort}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+    </picker>
+    <picker mode="selector" range="{{dates}}" data-key="date" data-list="dates" bindchange="setPicker">
+      <view class="form-row"><text>出发日期</text><view class="row-value"><text>{{form.date}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+    </picker>
+    <picker mode="selector" range="{{departs}}" data-key="depart" data-list="departs" bindchange="setPicker">
+      <view class="form-row"><text>出发地</text><view class="row-value"><text>{{form.depart}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+    </picker>
+    <picker mode="selector" range="{{times}}" data-key="time" data-list="times" bindchange="setPicker">
+      <view class="form-row"><text>集合时间</text><view class="row-value"><text>{{form.time}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+    </picker>
+    <view class="form-row">
+      <text>集合地点</text>
+      <input class="form-input" value="{{form.meetPlace}}" data-key="meetPlace" bindinput="onFormInput" placeholder="例如：朝阳大悦城停车场" />
     </view>
     <view class="form-row people-row">
       <text>人数需求</text>
-      <view class="stepper">
-        <button bindtap="decreasePeople">−</button>
-        <text>{{form.people}}</text>
-        <button bindtap="increasePeople">＋</button>
+      <view class="people-control">
+        <t-stepper value="{{form.people}}" min="{{1}}" max="{{12}}" theme="filled" size="small" disable-input bind:change="onPeopleChange" />
       </view>
       <text class="people-hint">还缺{{form.people}}人</text>
     </view>
@@ -19,32 +45,33 @@
   <view class="form-card card">
     <view class="block-title">滑雪信息</view>
     <view class="field-title">单 / 双板</view>
-    <view class="pill-grid">
-      <view class="pill {{index === 0 ? 'selected' : ''}}" wx:for="{{boards}}" wx:key="*this">{{item}}</view>
-    </view>
+    <view class="pill-grid"><view class="pill {{form.board === item ? 'selected' : ''}}" wx:for="{{boards}}" wx:key="*this" data-key="board" data-value="{{item}}" bindtap="selectPill"><text wx:if="{{form.board === item}}" class="dot"></text>{{item}}</view></view>
     <view class="field-title">水平要求</view>
-    <view class="pill-grid">
-      <view class="pill {{index === 2 ? 'selected' : ''}}" wx:for="{{levels}}" wx:key="*this">{{item}}</view>
-    </view>
-    <view class="field-title">玩法标签（可多选）</view>
-    <view class="pill-grid wrap">
-      <view class="pill {{index < 2 ? 'selected' : ''}}" wx:for="{{styles}}" wx:key="*this">{{item}}</view>
-    </view>
+    <view class="pill-grid"><view class="pill {{form.level === item ? 'selected' : ''}}" wx:for="{{levels}}" wx:key="*this" data-key="level" data-value="{{item}}" bindtap="selectPill">{{item}}</view></view>
+    <view class="field-title">玩法标签</view>
+    <view class="pill-grid wrap"><view class="pill {{form.style === item ? 'selected' : ''}}" wx:for="{{styles}}" wx:key="*this" data-key="style" data-value="{{item}}" bindtap="selectPill">{{item}}</view></view>
+    <view class="field-title">交通方式</view>
+    <view class="pill-grid wrap"><view class="pill {{form.traffic === item ? 'selected' : ''}}" wx:for="{{trafficTypes}}" wx:key="*this" data-key="traffic" data-value="{{item}}" bindtap="selectPill">{{item}}</view></view>
   </view>
 
   <view class="form-card card">
     <view class="block-title">其他信息</view>
-    <view class="toggle-row" wx:for="{{toggles}}" wx:key="label">
-      <text>{{item.label}}</text>
-      <switch checked="{{item.checked}}" color="#665cff" />
+    <view class="toggle-row" wx:for="{{toggles}}" wx:key="key"><text>{{item.label}}</text><t-switch value="{{item.checked}}" data-index="{{index}}" bind:change="onToggle" /></view>
+    <picker mode="selector" range="{{contactTypes}}" value="{{contactTypeIndex}}" bindchange="onContactTypeChange">
+      <view class="form-row"><text>联系方式类型</text><view class="row-value"><text>{{form.contactType}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+    </picker>
+    <view class="form-row" wx:if="{{form.contactType !== '站内消息'}}">
+      <text>联系方式内容</text>
+      <input class="form-input" value="{{form.contactContent}}" bindinput="onContactInput" placeholder="可选填写" />
     </view>
+    <view class="toggle-row"><text>公开联系方式</text><t-switch value="{{form.contactPublic}}" bind:change="onContactPublic" /></view>
+    <view class="contact-tip">默认通过站内消息联系；手机号和微信号默认不公开。</view>
     <textarea class="note" maxlength="100" value="{{form.note}}" bindinput="onNoteInput" placeholder="住宿、集合和行程补充说明（选填）" />
     <view class="counter">{{form.noteCount}}/100</view>
   </view>
 
   <view class="compliance-tip">{{contentRiskMessage}}</view>
-
   <view class="fixed-submit">
-    <button class="button-primary" bindtap="submit">发布滑雪行程</button>
+    <t-button theme="primary" shape="round" block customStyle="height: 82rpx; box-shadow: 0 18rpx 36rpx rgba(79, 70, 229, 0.22);" bind:tap="submit">发布滑雪行程</t-button>
   </view>
 </view>

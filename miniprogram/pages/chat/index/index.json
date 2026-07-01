@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "消息",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index"
+  }
+}

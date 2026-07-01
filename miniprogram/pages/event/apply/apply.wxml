@@ -1,0 +1,66 @@
+<view class="apply-page safe-bottom">
+  <view class="event-card card">
+    <image class="event-cover" mode="aspectFill" src="{{event.image}}" />
+    <view class="event-info">
+      <view class="event-title">{{event.resort}}</view>
+      <view class="event-meta">{{event.date}} {{event.time}} · {{event.depart}}</view>
+      <view class="tag-row">
+        <text class="tag tag-green">{{event.badge}}</text>
+        <text class="tag">{{event.board}}{{event.level}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">我的情况</view>
+
+    <view class="form-row">
+      <view class="label">滑雪水平</view>
+      <picker mode="selector" range="{{levels}}" value="{{levelIndex}}" bindchange="onLevelChange">
+        <view class="picker-value">{{levels[levelIndex]}} <app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+      </picker>
+    </view>
+
+    <view class="form-row">
+      <view class="label">单双板</view>
+      <picker mode="selector" range="{{skiTypes}}" value="{{skiTypeIndex}}" bindchange="onSkiTypeChange">
+        <view class="picker-value">{{skiTypes[skiTypeIndex]}} <app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+      </picker>
+    </view>
+
+    <view class="form-row">
+      <view class="label">出发区域</view>
+      <input class="field-input" value="{{departArea}}" data-key="departArea" bindinput="onInput" placeholder="例如：北京朝阳" />
+    </view>
+
+    <view class="form-row">
+      <view class="label">联系手机号</view>
+      <input class="field-input" type="number" maxlength="11" value="{{contactPhone}}" data-key="contactPhone" bindinput="onInput" placeholder="用于报名确认" />
+    </view>
+    <t-checkbox
+      checked="{{savePhoneToProfile}}"
+      label="保存到个人资料，方便下次使用"
+      data-key="savePhoneToProfile"
+      bind:change="toggleSavePhone"
+      t-class="save-phone-row"
+    />
+
+    <view class="form-row">
+      <view class="label">是否有车</view>
+      <t-switch value="{{hasCar}}" data-key="hasCar" bind:change="onSwitch" />
+    </view>
+
+    <view class="form-row">
+      <view class="label">可带人</view>
+      <t-switch value="{{canCarryPeople}}" data-key="canCarryPeople" bind:change="onSwitch" />
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">申请说明</view>
+    <textarea class="message-box" value="{{message}}" data-key="message" bindinput="onInput" maxlength="200" placeholder="介绍你的水平、交通方式、想怎么玩" />
+    <view class="tip">建议说明水平、是否准时、是否互拍、是否接受 AA 费用。</view>
+  </view>
+
+  <t-button theme="primary" shape="round" block customStyle="height: 84rpx; margin-top: 28rpx; box-shadow: 0 18rpx 36rpx rgba(79, 70, 229, 0.22);" bind:tap="submitApply">提交申请</t-button>
+</view>

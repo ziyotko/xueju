@@ -1,0 +1,11 @@
+{
+  "navigationBarTitleText": "申请加入",
+  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index",
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-checkbox": "tdesign-miniprogram/checkbox/checkbox",
+    "t-switch": "tdesign-miniprogram/switch/switch"
+  }
+}

@@ -1,0 +1,17 @@
+<view class="search-page">
+  <view class="search-box card">
+    <app-icon name="search" size="20" color="#94A3B8" />
+    <input value="{{keyword}}" bindinput="onInput" placeholder="搜索雪场、日期、出发地" focus />
+    <view class="search-btn" bindtap="doSearch">搜索</view>
+  </view>
+  <view class="hot-card card" wx:if="{{!keyword}}">
+    <view class="section-title">热门搜索</view>
+    <view class="hot-tags">
+      <view wx:for="{{hotWords}}" wx:key="*this" data-keyword="{{item}}" bindtap="useHot">{{item}}</view>
+    </view>
+  </view>
+  <view class="result-count">共 {{events.length}} 个相关滑雪局</view>
+  <view class="result-list">
+    <ski-event-card wx:for="{{events}}" wx:key="id" event="{{item}}" bind:cardtap="goDetail" bind:jointap="goApply" />
+  </view>
+</view>

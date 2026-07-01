@@ -52,6 +52,14 @@ export async function getAdminPage(resource: AdminResource) {
   return unwrap(http.get<ApiBody<PageResult<Record<string, unknown>>>>(`/admin/${resource}`))
 }
 
+export async function getAdminPageWithParams(resource: AdminResource, params: Record<string, unknown>) {
+  return unwrap(http.get<ApiBody<PageResult<Record<string, unknown>>>>(`/admin/${resource}`, { params }))
+}
+
+export async function runAdminAction(resource: AdminResource, id: string | number, payload: AdminActionPayload) {
+  return unwrap(http.post<ApiBody<{ status: string }>>(`/admin/${resource}/${id}/actions`, payload))
+}
+
 export interface HealthInfo {
   app: string
   env: string
@@ -59,7 +67,14 @@ export interface HealthInfo {
   timestamp: string
 }
 
-export type AdminResource = "users" | "events" | "messages" | "reviews" | "reports" | "content-reviews"
+export type AdminResource = "users" | "events" | "applications" | "messages" | "reviews" | "reports" | "content-reviews" | "dicts"
+
+export interface AdminActionPayload {
+  action: string
+  status?: string
+  reason?: string
+  result?: string
+}
 
 export interface PageResult<T> {
   list: T[]
@@ -77,6 +92,12 @@ export interface AdminDashboard {
   reports: {
     pending: number
     handled: number
+  }
+  totals?: {
+    users: number
+    events: number
+    applications: number
+    reviews: number
   }
   actions: string[]
 }

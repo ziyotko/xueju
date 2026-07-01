@@ -1,6 +1,11 @@
 {
   "navigationBarTitleText": "发布滑雪行程",
   "navigationBarBackgroundColor": "#ffffff",
-  "navigationBarTextStyle": "black"
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index",
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-stepper": "tdesign-miniprogram/stepper/stepper",
+    "t-switch": "tdesign-miniprogram/switch/switch"
+  }
 }
-

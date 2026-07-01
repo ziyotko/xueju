@@ -1,0 +1,15 @@
+<view class="section-tabs">
+  <view
+    class="section-tabs__tab {{item === active ? 'is-active' : ''}}"
+    wx:for="{{tabs}}"
+    wx:key="*this"
+    data-tab="{{item}}"
+    bindtap="onTabTap"
+  >
+    {{item}}
+  </view>
+  <view class="section-tabs__filter" bindtap="onFilterTap">
+    <app-icon name="filter" size="20" color="#111827" />
+    <text>筛选</text>
+  </view>
+</view>

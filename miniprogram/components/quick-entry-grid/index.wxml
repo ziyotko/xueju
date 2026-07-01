@@ -1,0 +1,8 @@
+<view class="quick-grid">
+  <view class="quick-grid__item" wx:for="{{items}}" wx:key="text" data-index="{{index}}" bindtap="onEntryTap">
+    <view class="quick-grid__icon">
+      <app-icon name="{{item.iconName}}" size="24" source="{{item.source || 'tdesign'}}" active />
+    </view>
+    <view class="quick-grid__text">{{item.text}}</view>
+  </view>
+</view>

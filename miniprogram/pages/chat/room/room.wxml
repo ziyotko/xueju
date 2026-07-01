@@ -1,32 +1,66 @@
 <view class="chat-page">
-  <view class="chat-notice">阿飞邀请你加入了群聊</view>
-  <view class="chat-notice">你已加入群聊</view>
-
-  <view class="message-list">
-    <view class="message-row {{item.side}}" wx:for="{{messages}}" wx:key="id">
-      <view wx:if="{{item.side === 'left'}}" class="avatar small">{{item.initial}}</view>
-      <view class="bubble {{item.system ? 'system' : ''}}">
-        <view class="sender" wx:if="{{item.side === 'left'}}">{{item.displayName}}</view>
-        <view class="content">{{item.content}}</view>
-      </view>
-      <view wx:if="{{item.side === 'right'}}" class="avatar small">我</view>
-      <text class="time">{{item.time}}</text>
+  <view class="chat-header trip-summary-bar">
+    <view class="chat-head-copy">
+      <view class="chat-title">{{event.resort}}（4）</view>
+      <view class="chat-subtitle">已成局 · {{event.date}} {{event.time}} 出发</view>
     </view>
+    <view class="clear-btn" bindtap="clearMessages">清空</view>
   </view>
 
-  <view class="input-bar">
-    <view class="voice">◉</view>
-    <input value="{{inputValue}}" bindinput="onInput" placeholder="输入消息..." />
-    <view class="emoji">☺</view>
-    <button bindtap="send">＋</button>
-  </view>
+  <scroll-view
+    class="chat-scroll"
+    scroll-y
+    scroll-into-view="{{toView}}"
+    scroll-with-animation
+    enhanced
+    show-scrollbar="false"
+    bindtap="hideActionPanel"
+  >
+    <view class="chat-notice">阿飞邀请你加入了群聊</view>
+    <view class="chat-notice">你已加入群聊，行程信息以群内同步为准</view>
 
-  <view class="risk-tip">{{contentRiskMessage}}</view>
+    <view class="message-list">
+      <view id="msg-{{item.id}}" class="message-row {{item.side}}" wx:for="{{messages}}" wx:key="id">
+        <view wx:if="{{item.side === 'left'}}" class="avatar small">{{item.initial}}</view>
+        <view class="bubble {{item.system ? 'system' : ''}}">
+          <view class="sender" wx:if="{{item.side === 'left'}}">{{item.displayName}}</view>
+          <view class="content">{{item.content}}</view>
+        </view>
+        <view wx:if="{{item.side === 'right'}}" class="avatar small mine">我</view>
+        <text class="time">{{item.time}}</text>
+      </view>
+    </view>
+    <view class="chat-bottom-spacer"></view>
+  </scroll-view>
 
-  <view class="quick-panel">
-    <view class="quick-item" wx:for="{{quickActions}}" wx:key="text">
-      <view class="quick-icon">{{item.icon}}</view>
-      <view>{{item.text}}</view>
+  <view class="input-area {{actionPanelVisible ? 'panel-open' : ''}}">
+    <view class="risk-tip">{{contentRiskMessage}}</view>
+    <view class="input-bar">
+      <view class="tool-btn">
+        <app-icon name="microphone" size="22" color="#64748B" />
+      </view>
+      <input
+        value="{{inputValue}}"
+        bindinput="onInput"
+        bindconfirm="onConfirm"
+        confirm-type="send"
+        placeholder="输入消息..."
+        adjust-position="true"
+        cursor-spacing="18"
+      />
+      <view class="tool-btn" bindtap="toggleActionPanel">
+        <app-icon name="add-circle" size="24" color="#4F46E5" />
+      </view>
+      <button class="send-btn" bindtap="send">发送</button>
+    </view>
+
+    <view class="quick-panel" wx:if="{{actionPanelVisible}}">
+      <view class="quick-item" wx:for="{{quickActions}}" wx:key="text" data-index="{{index}}" bindtap="sendQuickAction">
+        <view class="quick-icon">
+          <app-icon name="{{item.iconName}}" size="22" active />
+        </view>
+        <view>{{item.text}}</view>
+      </view>
     </view>
   </view>
 </view>

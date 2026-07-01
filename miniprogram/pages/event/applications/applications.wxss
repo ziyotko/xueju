@@ -1,0 +1,113 @@
+.applications-page {
+  padding: 24rpx 28rpx calc(36rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: #f6f8fc;
+}
+
+.summary-card,
+.request-card {
+  padding: 26rpx;
+  margin-bottom: 22rpx;
+}
+
+.summary-title {
+  color: #111827;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.summary-meta {
+  margin-top: 10rpx;
+  color: #64748b;
+  font-size: 24rpx;
+}
+
+.person-main {
+  margin-left: 16rpx;
+}
+
+.person-name {
+  color: #111827;
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.person-name text {
+  margin-left: 10rpx;
+  color: #94a3b8;
+  font-size: 22rpx;
+  font-weight: 500;
+}
+
+.person-meta {
+  margin-top: 8rpx;
+  color: #64748b;
+  font-size: 23rpx;
+}
+
+.status {
+  flex-shrink: 0;
+  height: 44rpx;
+  padding: 0 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+}
+
+.status-pending {
+  background: #fff7ed;
+  color: #f97316;
+}
+
+.status-approved {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.status-rejected {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.message {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  border-radius: 18rpx;
+  background: #f7f9fd;
+  color: #334155;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.actions {
+  margin-top: 22rpx;
+  display: flex;
+  justify-content: flex-end;
+  gap: 16rpx;
+}
+
+.actions button {
+  height: 64rpx;
+  min-width: 120rpx;
+  border-radius: 18rpx;
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 64rpx;
+}
+
+.actions button::after {
+  border: 0;
+}
+
+.reject {
+  background: #f7f9fd;
+  color: #64748b;
+}
+
+.approve,
+.chat {
+  background: linear-gradient(135deg, #5965ff, #7b4cff);
+  color: #ffffff;
+}

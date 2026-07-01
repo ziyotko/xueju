@@ -1,0 +1,12 @@
+<view class="settings-page">
+  <view class="setting-card card">
+    <view class="setting-row" bindtap="goProfileEdit"><text>编辑资料</text><app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+    <view class="setting-row" bindtap="goFavorites"><text>我的收藏</text><app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+    <view class="setting-row" bindtap="goNotifications"><text>消息通知</text><app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+  </view>
+  <view class="setting-card card">
+    <view class="setting-row" bindtap="goReport"><text>举报与反馈</text><app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+    <view class="setting-row" bindtap="showPrivacy"><text>隐私保护指引</text><app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+    <view class="setting-row danger" bindtap="deleteAccount"><text>注销账号</text><app-icon name="chevron-right" size="18" color="#EF4444" /></view>
+  </view>
+</view>

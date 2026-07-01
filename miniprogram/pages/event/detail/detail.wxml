@@ -3,12 +3,21 @@
     <image class="cover-image" mode="aspectFill" src="{{event.image}}" />
     <view class="cover-mask"></view>
     <view class="cover-actions">
-      <view class="round">‹</view>
-      <view class="round">↗</view>
+      <view class="round" bindtap="goBack">
+        <app-icon name="chevron-left" size="24" color="#FFFFFF" />
+      </view>
+      <view class="right-actions">
+        <view class="round" bindtap="tapShare">
+          <app-icon name="share" size="24" color="#FFFFFF" />
+        </view>
+        <view class="round" bindtap="openMore">
+          <app-icon name="more" size="24" color="#FFFFFF" />
+        </view>
+      </view>
     </view>
   </view>
 
-  <view class="content-card card">
+  <view class="content-card detail-card card">
     <view class="between">
       <view>
         <view class="detail-title">{{event.resort}}</view>
@@ -23,11 +32,11 @@
     </view>
 
     <view class="info-grid">
-      <text>人数</text><text>共{{event.maxPeople}}人｜{{event.people}}</text>
-      <text>集合时间</text><text>{{event.date}} {{event.time}}</text>
-      <text>集合地点</text><text>朝阳大悦城停车场</text>
-      <text>交通方式</text><text>{{event.traffic}}，费用 AA</text>
-      <text>备注</text><text>{{event.note}}</text>
+      <view class="info-label"><app-icon name="usergroup" size="20" /><text>人数</text></view><view class="info-value">共{{event.maxPeople}}人｜{{event.people}}</view>
+      <view class="info-label"><app-icon name="calendar" size="20" /><text>集合时间</text></view><view class="info-value">{{event.date}} {{event.time}}</view>
+      <view class="info-label"><app-icon name="location" size="20" /><text>集合地点</text></view><view class="info-value">{{event.meetPlace}}</view>
+      <view class="info-label"><app-icon name="vehicle" size="20" /><text>交通方式</text></view><view class="info-value">{{event.traffic}}，费用 AA</view>
+      <view class="info-label"><app-icon name="edit" size="20" /><text>备注</text></view><view class="info-value">{{event.note}}</view>
     </view>
   </view>
 
@@ -37,33 +46,51 @@
       <view class="row">
         <view class="host-avatar">{{event.hostInitial}}</view>
         <view>
-          <view class="host-name">{{event.host}} ✓</view>
+          <view class="host-name">
+            <text>{{event.host}}</text>
+            <app-icon name="check-circle" size="14" active />
+          </view>
           <view class="host-credit">{{event.credit}}　发起局数 12</view>
         </view>
       </view>
-      <view class="button-outline follow">关注</view>
+      <view class="button-outline follow" bindtap="followHost">关注</view>
     </view>
   </view>
 
   <view class="content-card card">
     <view class="block-title">已加入成员（{{memberCount}}）</view>
-    <view class="member-row" wx:for="{{members}}" wx:key="id">
-      <view class="avatar">{{item.initial}}</view>
+    <view class="member-row" wx:for="{{members}}" wx:key="id" data-id="{{item.id}}" bindtap="goUser">
+      <view class="avatar">
+        <image wx:if="{{item.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{item.avatarUrl}}" />
+        <text wx:else>{{item.initial}}</text>
+      </view>
       <view class="member-main">
         <view class="member-name">{{item.name}} <text class="role">{{item.role}}</text></view>
         <view class="member-meta">{{item.level}}</view>
       </view>
-      <view class="member-credit">{{item.credit}} ›</view>
+      <view class="member-credit">
+        <text>{{item.credit}}</text>
+        <app-icon name="chevron-right" size="18" color="#7B8499" />
+      </view>
     </view>
+    <view wx:if="{{!members.length}}" class="empty-members">暂无已加入成员</view>
   </view>
 
   <view class="content-card card">
     <view class="block-title">局内规则</view>
-    <view class="rule" wx:for="{{rules}}" wx:key="*this">✓ {{item}}</view>
+    <view class="rule" wx:for="{{rules}}" wx:key="*this">
+      <app-icon name="check-circle" size="18" active />
+      <text>{{item}}</text>
+    </view>
   </view>
 
   <view class="bottom-actions">
-    <view class="collect">☆ 收藏</view>
-    <button class="button-primary apply" bindtap="goChat">申请加入</button>
+    <view class="collect" bindtap="toggleCollect">
+      <app-icon name="{{isFavorite ? 'star-filled' : 'star'}}" size="20" color="{{isFavorite ? '#F59E0B' : '#64748B'}}" />
+      <text>{{isFavorite ? '已收藏' : '收藏'}}</text>
+    </view>
+    <button wx:if="{{actionState.canManage}}" class="button-outline manage" bindtap="goApplications">申请列表</button>
+    <button wx:if="{{actionState.canChat}}" class="button-outline chat-action" bindtap="goChat">群聊</button>
+    <button wx:if="{{!actionState.canManage && !actionState.canChat}}" class="button-primary apply {{actionState.isPending ? 'disabled' : ''}}" bindtap="handlePrimaryAction">{{actionState.primaryText}}</button>
   </view>
 </view>

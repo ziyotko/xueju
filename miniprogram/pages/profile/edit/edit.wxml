@@ -1,0 +1,51 @@
+<view class="edit-page safe-bottom">
+  <view class="avatar-card card">
+    <view class="avatar big">
+      <image wx:if="{{avatarUrl}}" mode="aspectFill" src="{{avatarUrl}}" binderror="onAvatarError" />
+      <text wx:else>{{avatarInitial}}</text>
+    </view>
+    <view class="change-avatar" bindtap="chooseAvatar">更换头像</view>
+  </view>
+
+  <view class="form-card card">
+    <view class="form-row">
+      <view class="label">昵称</view>
+      <input class="field-input" value="{{nickname}}" data-key="nickname" bindinput="onInput" />
+    </view>
+    <view class="form-row">
+      <view class="label">城市</view>
+      <input class="field-input" value="{{city}}" data-key="city" bindinput="onInput" />
+    </view>
+    <view class="form-row">
+      <view class="label">手机号</view>
+      <input class="field-input" type="number" maxlength="11" value="{{phone}}" data-key="phone" bindinput="onInput" placeholder="可选填写" />
+    </view>
+    <view class="field-tip">手机号仅用于活动报名、预约确认和必要联系，不会公开展示。</view>
+    <view class="form-row">
+      <view class="label">滑雪水平</view>
+      <picker mode="selector" range="{{levels}}" value="{{levelIndex}}" bindchange="onLevelChange">
+        <view class="picker-value">{{levels[levelIndex]}} <app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+      </picker>
+    </view>
+    <view class="form-row">
+      <view class="label">单双板</view>
+      <picker mode="selector" range="{{skiTypes}}" value="{{skiTypeIndex}}" bindchange="onSkiTypeChange">
+        <view class="picker-value">{{skiTypes[skiTypeIndex]}} <app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">滑行风格</view>
+    <view class="tag-wrap">
+      <view class="select-tag {{item.selected ? 'active' : ''}}" wx:for="{{tags}}" wx:key="text" data-index="{{index}}" bindtap="toggleTag">{{item.text}}</view>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">个人简介</view>
+    <textarea class="bio-box" value="{{bio}}" data-key="bio" bindinput="onInput" maxlength="120" />
+  </view>
+
+  <button class="submit-btn" bindtap="saveProfile">保存资料</button>
+</view>

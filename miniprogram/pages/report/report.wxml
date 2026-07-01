@@ -1,0 +1,11 @@
+<view class="report-page safe-bottom">
+  <view class="report-card card">
+    <view class="section-title">选择原因</view>
+    <view class="reason {{reason === item ? 'active' : ''}}" wx:for="{{reasons}}" wx:key="*this" data-value="{{item}}" bindtap="setReason">{{item}}</view>
+  </view>
+  <view class="report-card card">
+    <view class="section-title">详细说明</view>
+    <textarea class="content" value="{{content}}" bindinput="onInput" maxlength="300" placeholder="请描述具体情况，便于后台处理" />
+  </view>
+  <button class="submit" bindtap="submit">提交</button>
+</view>

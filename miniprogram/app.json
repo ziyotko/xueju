@@ -1,42 +1,63 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/search/search",
+    "pages/filter/filter",
+    "pages/city/select/select",
+    "pages/notifications/notifications",
+    "pages/favorites/favorites",
+    "pages/settings/settings",
+    "pages/report/report",
     "pages/event/create/create",
     "pages/event/detail/detail",
+    "pages/event/apply/apply",
+    "pages/event/applications/applications",
     "pages/trips/index/index",
+    "pages/chat/index/index",
     "pages/chat/room/room",
-    "pages/profile/profile"
+    "pages/review/create/create",
+    "pages/profile/profile",
+    "pages/profile/edit/edit",
+    "pages/user/detail/detail"
   ],
   "window": {
     "navigationBarTitleText": "雪局行程",
     "navigationBarBackgroundColor": "#5b6cff",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#f5f7fb"
+    "backgroundColor": "#F6F8FC"
   },
   "tabBar": {
-    "color": "#7a8194",
-    "selectedColor": "#5b6cff",
+    "custom": true,
+    "color": "#64748B",
+    "selectedColor": "#4F46E5",
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "发现"
+        "text": "发现",
+        "iconPath": "assets/icons/tabbar/home.png",
+        "selectedIconPath": "assets/icons/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/trips/index/index",
-        "text": "行程"
+        "text": "行程",
+        "iconPath": "assets/icons/tabbar/trip.png",
+        "selectedIconPath": "assets/icons/tabbar/trip-active.png"
       },
       {
-        "pagePath": "pages/chat/room/room",
-        "text": "消息"
+        "pagePath": "pages/chat/index/index",
+        "text": "消息",
+        "iconPath": "assets/icons/tabbar/message.png",
+        "selectedIconPath": "assets/icons/tabbar/message-active.png"
       },
       {
         "pagePath": "pages/profile/profile",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "assets/icons/tabbar/user.png",
+        "selectedIconPath": "assets/icons/tabbar/user-active.png"
       }
     ]
   },
   "sitemapLocation": "sitemap.json"
 }
-

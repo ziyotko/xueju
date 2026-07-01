@@ -1,0 +1,2 @@
+const { members } = require('../../../data/mock')
+Page({data:{name:'阿飞',initial:'阿',level:'单板 · 中级',credit:'信用 4.8',tags:['准时','友好','水平真实']},onLoad(o){const m=members.find(i=>Number(i.id)===Number(o.id));if(m)this.setData({name:m.name,initial:m.initial,level:m.level,credit:m.credit})},follow(){wx.showToast({title:'已关注',icon:'success'})},report(){wx.navigateTo({url:'/pages/report/report?targetType=user&targetId=1'})}})

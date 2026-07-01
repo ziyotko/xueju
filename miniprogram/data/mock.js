@@ -1,8 +1,12 @@
-const mountainImages = [
-  "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1551524559-8af4e6624178?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1605540436563-5bca919ae766?auto=format&fit=crop&w=800&q=80"
-]
+const unsplash = {
+  // Unsplash 实拍滑雪/雪山图片。上线小程序时需在微信后台配置 images.unsplash.com 合法域名。
+  banner: "https://images.unsplash.com/photo-1726688648196-c5d505af321e?auto=format&fit=crop&w=1200&q=80",
+  wanlong: "https://images.unsplash.com/photo-1740137660688-3d3f2b5422b6?auto=format&fit=crop&w=900&q=80",
+  nanshan: "https://images.unsplash.com/photo-1678973751386-66d7bd0f5abf?auto=format&fit=crop&w=900&q=80",
+  yunding: "https://images.unsplash.com/photo-1707290796500-95016769aa11?auto=format&fit=crop&w=900&q=80",
+  taiwu: "https://images.unsplash.com/photo-1558733467-11cef06eb6d8?auto=format&fit=crop&w=900&q=80",
+  profile: "https://images.unsplash.com/photo-1726688648196-c5d505af321e?auto=format&fit=crop&w=1200&q=80"
+}
 
 const events = [
   {
@@ -11,20 +15,26 @@ const events = [
     date: "12月16日（周六）",
     time: "06:30",
     depart: "北京朝阳出发",
+    meetPlace: "朝阳大悦城停车场",
     level: "中级",
     board: "单板",
     traffic: "自驾同行",
     people: "已2人，缺2人",
+    joinedText: "已 2 人",
+    spotsText: "缺 2 人",
     maxPeople: 4,
-    image: mountainImages[0],
+    image: unsplash.wanlong,
     tags: ["周六出发", "单板中级", "刷道", "可同行"],
     badge: "周六出发",
     tagA: "刷道",
     tagB: "可同行",
+    displayTags: ["刷道", "可同行", "自驾"],
+    memberInitials: ["阿", "大", "鹿"],
     host: "阿飞",
     hostInitial: "阿",
     credit: "信用 4.8",
-    note: "周末刷道，寻找节奏一致的同行伙伴。",
+    hostSub: "发起局 12 · 准时率 98%",
+    note: "周末刷道，寻找节奏一致的同行伙伴。油费和高速费 AA。",
     status: "open"
   },
   {
@@ -33,19 +43,25 @@ const events = [
     date: "12月17日（周日）",
     time: "07:00",
     depart: "北京海淀出发",
+    meetPlace: "海淀黄庄地铁站 A 口",
     level: "初中级",
     board: "双板",
     traffic: "公共交通",
     people: "已2人，缺2人",
+    joinedText: "已 2 人",
+    spotsText: "缺 2 人",
     maxPeople: 4,
-    image: mountainImages[1],
-    tags: ["周日出发", "双板初中级", "练习", "放松滑"],
+    image: unsplash.nanshan,
+    tags: ["周日出发", "双板初中级", "练习", "新手友好"],
     badge: "周日出发",
     tagA: "练习",
     tagB: "放松滑",
+    displayTags: ["练习", "放松滑", "新手友好"],
+    memberInitials: ["鹿", "阿", "大"],
     host: "小鹿",
     hostInitial: "鹿",
     credit: "信用 4.9",
+    hostSub: "发起局 6 · 好评率 99%",
     note: "轻松练习，适合想稳定节奏的同水平雪友。",
     status: "open"
   },
@@ -55,27 +71,62 @@ const events = [
     date: "12月16日（周六）",
     time: "07:20",
     depart: "北京东城出发",
+    meetPlace: "东直门银座门口集合",
     level: "高级",
     board: "单板",
     traffic: "同行交通待定",
     people: "已3人，缺1人",
+    joinedText: "已 3 人",
+    spotsText: "缺 1 人",
     maxPeople: 4,
-    image: mountainImages[2],
+    image: unsplash.yunding,
     tags: ["周六出发", "单板高级", "公园", "平花"],
     badge: "周六出发",
     tagA: "公园",
     tagB: "平花",
+    displayTags: ["公园", "平花", "互拍"],
+    memberInitials: ["大", "阿", "鹿"],
     host: "大力",
     hostInitial: "大",
     credit: "信用 4.7",
+    hostSub: "发起局 9 · 好评率 96%",
     note: "以公园和刻滑为主，住宿需求可在备注里说明。",
+    status: "open"
+  },
+  {
+    id: 4,
+    resort: "太舞滑雪小镇",
+    date: "12月23日（周六）",
+    time: "06:50",
+    depart: "北京望京出发",
+    meetPlace: "望京 SOHO 南门",
+    level: "中级",
+    board: "单双板均可",
+    traffic: "自驾同行",
+    people: "已1人，缺3人",
+    joinedText: "已 1 人",
+    spotsText: "缺 3 人",
+    maxPeople: 4,
+    image: unsplash.taiwu,
+    tags: ["周六出发", "中级", "休闲", "可拼车"],
+    badge: "周六出发",
+    tagA: "休闲",
+    tagB: "可拼车",
+    displayTags: ["休闲", "可拼车", "拍照"],
+    memberInitials: ["木"],
+    host: "木木",
+    hostInitial: "木",
+    credit: "信用 4.6",
+    hostSub: "发起局 3 · 准时率 100%",
+    note: "节奏轻松，适合边滑边拍照。",
     status: "open"
   }
 ]
 
 const members = [
   { id: 1, name: "阿飞", initial: "阿", role: "发起人", level: "单板 · 中级", credit: "信用 4.8" },
-  { id: 2, name: "大力", initial: "大", role: "成员", level: "单板 · 中级", credit: "信用 4.6" }
+  { id: 2, name: "大力", initial: "大", role: "成员", level: "单板 · 中级", credit: "信用 4.6" },
+  { id: 3, name: "小鹿", initial: "鹿", role: "成员", level: "双板 · 初中级", credit: "信用 4.9" }
 ]
 
 const messages = [
@@ -99,5 +150,7 @@ module.exports = {
   events,
   members,
   messages,
-  heroImage: mountainImages[0]
+  heroImage: unsplash.banner,
+  profileCover: unsplash.profile,
+  unsplashImages: unsplash
 }

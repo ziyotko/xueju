@@ -1,0 +1,4 @@
+<view class="favorites-page">
+  <view class="result-list" wx:if="{{events.length}}"><ski-event-card wx:for="{{events}}" wx:key="id" event="{{item}}" bind:cardtap="goDetail" bind:jointap="goApply" /></view>
+  <view class="empty card" wx:else><view class="empty-title">还没有收藏</view><view class="empty-sub">在滑雪局详情页点击收藏，会出现在这里。</view><button bindtap="goHome">去发现</button></view>
+</view>

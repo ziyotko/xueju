@@ -1,0 +1,55 @@
+<view class="ski-card" bindtap="onCardTap">
+  <view class="ski-card__main">
+    <view class="ski-card__copy">
+      <view class="ski-card__badge">{{event.badge}}</view>
+      <view class="ski-card__title">{{event.resort}}</view>
+      <view class="ski-card__meta">
+        <view class="ski-card__meta-item ski-card__meta-item--date">
+          <app-icon name="calendar" size="16" color="#64748B" />
+          <text>{{event.date}}</text>
+        </view>
+        <view class="ski-card__meta-item">
+          <app-icon name="location" size="16" color="#64748B" />
+          <text>{{event.depart}}</text>
+        </view>
+        <view class="ski-card__meta-item">
+          <app-icon name="{{event.board === '单板' ? 'snowboard' : 'ski'}}" size="16" source="local" />
+          <text>{{event.board}}</text>
+        </view>
+        <view class="ski-card__meta-item">
+          <app-icon name="vehicle" size="16" color="#64748B" />
+          <text>{{event.traffic}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="ski-card__side">
+      <image class="ski-card__image" mode="aspectFill" src="{{event.image}}" />
+      <view class="ski-card__spots">
+        <text class="ski-card__spots-joined">{{event.joinedText}}</text>
+        <text class="ski-card__spots-missing">{{event.spotsText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="ski-card__tags">
+    <text class="ski-card__tag ski-card__tag--primary">{{event.board}}{{event.level}}</text>
+    <text class="ski-card__tag" wx:for="{{event.displayTags}}" wx:key="*this">{{item}}</text>
+  </view>
+
+  <view class="ski-card__footer">
+    <view class="ski-card__host">
+      <view class="ski-card__avatars">
+        <view class="ski-card__avatar" wx:for="{{event.memberInitials}}" wx:key="*this">{{item}}</view>
+      </view>
+      <view class="ski-card__host-copy">
+        <view class="ski-card__host-name">
+          <text>{{event.host}}</text>
+          <app-icon name="check-circle" size="14" active />
+        </view>
+        <view class="ski-card__host-sub">{{event.credit}}</view>
+      </view>
+    </view>
+    <button wx:if="{{!event.isCreatedByMe}}" class="ski-card__join" catchtap="onJoinTap">加入</button>
+  </view>
+</view>

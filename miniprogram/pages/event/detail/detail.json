@@ -1,6 +1,8 @@
 {
   "navigationBarTitleText": "行程详情",
   "navigationBarBackgroundColor": "#ffffff",
-  "navigationBarTextStyle": "black"
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index"
+  }
 }
-

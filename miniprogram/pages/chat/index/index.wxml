@@ -1,0 +1,43 @@
+<view class="messages-page safe-tab-page">
+  <view class="messages-head">
+    <view>
+      <view class="page-title">消息</view>
+      <view class="page-subtitle">滑雪局成局后，在这里同步集合、费用和行程备注</view>
+    </view>
+    <view class="head-action" bindtap="markAllRead">全部已读</view>
+  </view>
+
+  <view class="notice-card card" bindtap="goNotifications">
+    <view class="notice-icon"><app-icon name="notification" size="22" active /></view>
+    <view class="notice-copy">
+      <view class="notice-title">系统通知</view>
+      <view class="notice-sub">申请审核、评价和安全提醒</view>
+    </view>
+    <view class="notice-badge" wx:if="{{unreadCount > 0}}">{{unreadCount}}</view>
+  </view>
+
+  <view class="section-title">局内群聊</view>
+  <view class="conversation-card card" wx:for="{{conversations}}" wx:key="id" data-id="{{item.eventId}}" bindtap="openRoom">
+    <image class="conversation-cover" src="{{item.image}}" mode="aspectFill" />
+    <view class="conversation-main">
+      <view class="conversation-top">
+        <view class="conversation-title">{{item.title}}</view>
+        <view class="conversation-time">{{item.time}}</view>
+      </view>
+      <view class="conversation-last">{{item.lastMessage}}</view>
+      <view class="conversation-tags">
+        <text>{{item.status}}</text>
+        <text>{{item.memberText}}</text>
+      </view>
+    </view>
+    <view class="unread" wx:if="{{item.unread > 0}}">{{item.unread}}</view>
+  </view>
+
+  <view class="empty-card card" wx:if="{{!conversations.length}}">
+    <view class="empty-title">还没有群聊</view>
+    <view class="empty-sub">申请加入滑雪局或发布行程后，会自动生成局内群聊。</view>
+    <button bindtap="goHome">去发现行程</button>
+  </view>
+
+  <view class="tabbar-spacer"></view>
+</view>

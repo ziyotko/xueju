@@ -1,14 +1,81 @@
 .chat-page {
-  min-height: 100vh;
-  padding: 28rpx 24rpx 340rpx;
+  height: 100vh;
   box-sizing: border-box;
-  background: #f6f8ff;
+  background: #f5f7fc;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-header {
+  flex-shrink: 0;
+  padding: 18rpx 24rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  background: #f5f7fc;
+}
+
+.back-btn {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-head-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-title {
+  color: #151b2c;
+  font-size: 30rpx;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-subtitle {
+  margin-top: 6rpx;
+  color: #7b8499;
+  font-size: 22rpx;
+}
+
+.clear-btn {
+  height: 52rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 22rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chat-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 0 24rpx 0;
+  box-sizing: border-box;
+}
+
+.chat-bottom-spacer {
+  height: 28rpx;
 }
 
 .chat-notice {
   text-align: center;
-  color: #a0a7b7;
-  font-size: 22rpx;
+  color: #a0a8b9;
+  font-size: 21rpx;
   margin: 16rpx 0;
 }
 
@@ -16,7 +83,7 @@
   position: relative;
   display: flex;
   align-items: flex-start;
-  margin: 28rpx 0;
+  margin: 26rpx 0;
 }
 
 .message-row.right {
@@ -27,6 +94,11 @@
   width: 54rpx;
   height: 54rpx;
   font-size: 22rpx;
+  flex-shrink: 0;
+}
+
+.mine {
+  background: linear-gradient(135deg, #4f46e5, #7b4cff);
 }
 
 .bubble {
@@ -36,19 +108,16 @@
   border-radius: 20rpx 20rpx 20rpx 6rpx;
   background: #ffffff;
   color: #1f2937;
-  font-size: 26rpx;
-  line-height: 1.45;
+  font-size: 25rpx;
+  line-height: 1.48;
   box-shadow: 0 12rpx 28rpx rgba(52, 73, 150, 0.06);
+  word-break: break-all;
 }
 
 .message-row.right .bubble {
   border-radius: 20rpx 20rpx 6rpx 20rpx;
   background: linear-gradient(135deg, #5965ff, #7b4cff);
   color: #ffffff;
-}
-
-.bubble.system {
-  background: #ffffff;
 }
 
 .sender {
@@ -63,65 +132,72 @@
   font-size: 20rpx;
 }
 
-.input-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 190rpx;
-  height: 92rpx;
-  padding: 14rpx 24rpx;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
+.input-area {
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom);
   background: #ffffff;
   border-top: 2rpx solid #eef1f7;
-}
-
-.input-bar input {
-  flex: 1;
-  height: 60rpx;
-  padding: 0 24rpx;
-  border-radius: 30rpx;
-  background: #f7f9fd;
-  font-size: 24rpx;
-}
-
-.voice,
-.emoji,
-.input-bar button {
-  width: 48rpx;
-  height: 48rpx;
-  padding: 0;
-  border-radius: 50%;
-  border: 0;
-  background: #ffffff;
-  color: #151b2c;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 48rpx;
+  box-shadow: 0 -12rpx 36rpx rgba(55, 72, 128, 0.06);
 }
 
 .risk-tip {
-  position: fixed;
-  left: 24rpx;
-  right: 24rpx;
-  bottom: 164rpx;
+  padding: 12rpx 28rpx 0;
   color: #9aa3b7;
   font-size: 20rpx;
 }
 
+.input-bar {
+  height: 96rpx;
+  padding: 12rpx 24rpx 16rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  background: #ffffff;
+}
+
+.input-bar input {
+  flex: 1;
+  height: 64rpx;
+  padding: 0 24rpx;
+  border-radius: 32rpx;
+  background: #f7f9fd;
+  font-size: 24rpx;
+}
+
+.tool-btn {
+  width: 54rpx;
+  height: 54rpx;
+  border-radius: 50%;
+  background: #f7f9fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.send-btn {
+  flex-shrink: 0;
+  min-width: 96rpx;
+  height: 60rpx;
+  padding: 0 22rpx;
+  border: 0;
+  border-radius: 30rpx;
+  background: linear-gradient(135deg, #5965ff, #7b4cff);
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 60rpx;
+}
+
+.send-btn::after { border: 0; }
+
 .quick-panel {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 22rpx 24rpx 38rpx;
+  padding: 18rpx 24rpx 28rpx;
   box-sizing: border-box;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  row-gap: 24rpx;
+  row-gap: 22rpx;
   background: #ffffff;
 }
 
@@ -136,11 +212,15 @@
   height: 54rpx;
   margin: 0 auto 10rpx;
   border-radius: 16rpx;
-  background: #eef3ff;
+  background: linear-gradient(180deg, #eef3ff, #f6f8ff);
   color: #4f6bff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
+  font-weight: 900;
 }
 
+
+.trip-summary-bar {
+  border-bottom: 1rpx solid #edf1f7;
+}

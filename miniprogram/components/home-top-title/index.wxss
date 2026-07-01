@@ -1,0 +1,21 @@
+.home-title-bar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-title-bar__title {
+  flex: 1;
+  text-align: center;
+  color: #111827;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.home-title-bar__spacer {
+  width: 48px;
+  height: 44px;
+  flex: 0 0 48px;
+}

@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "筛选",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index",
+    "t-button": "tdesign-miniprogram/button/button",
+    "t-check-tag": "tdesign-miniprogram/check-tag/check-tag",
+    "t-switch": "tdesign-miniprogram/switch/switch"
+  }
+}

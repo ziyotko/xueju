@@ -1,6 +1,8 @@
 {
-  "navigationBarTitleText": "万龙滑雪场（4）",
+  "navigationBarTitleText": "局内群聊",
   "navigationBarBackgroundColor": "#ffffff",
-  "navigationBarTextStyle": "black"
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index"
+  }
 }
-

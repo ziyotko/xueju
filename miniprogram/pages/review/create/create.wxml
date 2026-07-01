@@ -1,0 +1,43 @@
+<view class="review-page safe-bottom">
+  <view class="target-card card">
+    <view class="avatar big">阿</view>
+    <view>
+      <view class="target-name">阿飞</view>
+      <view class="target-meta">{{targetMeta}}</view>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">整体评分</view>
+    <view class="score-row">
+      <view class="star" wx:for="{{scores}}" wx:key="*this" data-score="{{item}}" bindtap="setScore">
+        <app-icon name="star-filled" size="32" color="{{item <= score ? '#F59E0B' : '#CBD5E1'}}" />
+      </view>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">正向标签</view>
+    <view class="tag-wrap">
+      <view class="select-tag {{item.selected ? 'active' : ''}}" wx:for="{{positiveTags}}" wx:key="text" data-index="{{index}}" bindtap="togglePositive">{{item.text}}</view>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">负向标签</view>
+    <view class="tag-wrap">
+      <view class="select-tag danger {{item.selected ? 'active-danger' : ''}}" wx:for="{{negativeTags}}" wx:key="text" data-index="{{index}}" bindtap="toggleNegative">{{item.text}}</view>
+    </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">文字评价</view>
+    <textarea class="content-box" value="{{content}}" bindinput="onInput" maxlength="300" placeholder="说说这次同滑体验" />
+    <view class="anonymous-row">
+      <text>匿名评价</text>
+      <switch checked="{{anonymous}}" bindchange="onAnonymous" color="#4F46E5" />
+    </view>
+  </view>
+
+  <button class="submit-btn" bindtap="submitReview">提交评价</button>
+</view>

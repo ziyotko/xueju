@@ -1,24 +1,32 @@
 page {
   min-height: 100vh;
-  background: #f4f7ff;
+  background: #f6f8fc;
   color: #182033;
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --td-brand-color: #5b6cff;
+  --td-brand-color-active: #4f46e5;
+  --td-brand-color-disabled: #c7d2fe;
+  --td-brand-color-light: #eef2ff;
+  --td-brand-color-light-active: #e0e7ff;
+  --td-button-border-radius: 22rpx;
+  --td-switch-checked-color: #5b6cff;
 }
 
 .page {
-  min-height: 100vh;
-  padding: 28rpx;
+  padding: 24rpx 28rpx;
   box-sizing: border-box;
 }
 
 .safe-bottom {
-  padding-bottom: 140rpx;
+  /* 普通二级页面只预留 Home Indicator 安全区，避免出现大段空白滚动 */
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 
 .card {
-  border-radius: 24rpx;
+  border-radius: 22rpx;
   background: #ffffff;
-  box-shadow: 0 18rpx 48rpx rgba(52, 73, 150, 0.08);
+  box-shadow: 0 16rpx 46rpx rgba(55, 72, 128, 0.07);
 }
 
 .primary-gradient {
@@ -44,14 +52,14 @@ page {
 .tag {
   display: inline-flex;
   align-items: center;
-  height: 44rpx;
-  padding: 0 18rpx;
-  margin: 0 12rpx 12rpx 0;
-  border-radius: 16rpx;
-  background: #f1f4ff;
+  height: 40rpx;
+  padding: 0 16rpx;
+  margin: 0 10rpx 10rpx 0;
+  border-radius: 14rpx;
+  background: #eef2ff;
   color: #5962d9;
-  font-size: 22rpx;
-  font-weight: 600;
+  font-size: 21rpx;
+  font-weight: 700;
 }
 
 .tag-green {
@@ -79,7 +87,7 @@ page {
 }
 
 .button-primary {
-  height: 76rpx;
+  height: 78rpx;
   border-radius: 22rpx;
   background: linear-gradient(135deg, #5965ff, #7a4dff);
   color: #ffffff;
@@ -89,6 +97,9 @@ page {
   align-items: center;
   justify-content: center;
   box-shadow: 0 18rpx 36rpx rgba(92, 92, 255, 0.24);
+  border: 0;
+  padding: 0;
+  line-height: 78rpx;
 }
 
 .button-outline {
@@ -103,3 +114,18 @@ page {
   justify-content: center;
 }
 
+.safe-tab-page {
+  /* Tab 页面才需要给自定义 tabBar 留空间；数值不要过大，否则短页面会空白滚动 */
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.tabbar-spacer {
+  display: none;
+  height: 0;
+}
+
+.button-clean::after,
+button::after {
+  border: 0;
+}

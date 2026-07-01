@@ -20,7 +20,7 @@ type Config struct {
 }
 
 func Load() Config {
-	_ = godotenv.Load()
+	loadEnv(".env", "../.env", "../../.env")
 
 	return Config{
 		AppName:         getEnv("APP_NAME", "xueju-api"),
@@ -32,6 +32,15 @@ func Load() Config {
 		WechatAppID:     getEnv("WECHAT_APP_ID", ""),
 		WechatAppSecret: getEnv("WECHAT_APP_SECRET", ""),
 		ContentSecurity: getEnvAsBool("WECHAT_CONTENT_SECURITY_ENABLED", false),
+	}
+}
+
+func loadEnv(paths ...string) {
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			_ = godotenv.Load(path)
+			return
+		}
 	}
 }
 

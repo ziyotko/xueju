@@ -1,0 +1,27 @@
+<view class="applications-page safe-bottom">
+  <view class="summary-card card">
+    <view class="summary-title">{{event.resort}}</view>
+    <view class="summary-meta">{{summaryText}}</view>
+  </view>
+
+  <view class="request-card card" wx:for="{{requests}}" wx:key="id">
+    <view class="between">
+      <view class="row" data-id="{{item.id}}" bindtap="goUser">
+        <view class="avatar">{{item.initial}}</view>
+        <view class="person-main">
+          <view class="person-name">{{item.name}} <text>{{item.credit}}</text></view>
+          <view class="person-meta">{{item.skiType}} · {{item.level}} · {{item.departArea}}</view>
+        </view>
+      </view>
+      <view class="status status-{{item.status}}">{{item.statusLabel}}</view>
+    </view>
+    <view class="message">{{item.message}}</view>
+    <view class="actions" wx:if="{{item.status === 'pending'}}">
+      <button class="reject" data-id="{{item.id}}" bindtap="reject">拒绝</button>
+      <button class="approve" data-id="{{item.id}}" bindtap="approve">同意</button>
+    </view>
+    <view class="actions" wx:elif="{{item.status === 'approved'}}">
+      <button class="chat" bindtap="goChat">进入群聊</button>
+    </view>
+  </view>
+</view>

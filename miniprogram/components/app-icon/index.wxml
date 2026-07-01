@@ -1,0 +1,14 @@
+<view class="app-icon {{className}}" style="width: {{iconSize}}; height: {{iconSize}};">
+  <t-icon
+    wx:if="{{source === 'tdesign'}}"
+    name="{{name}}"
+    size="{{iconSize}}"
+    color="{{iconColor}}"
+  />
+  <image
+    wx:else
+    class="app-icon__image"
+    src="{{localSrc}}"
+    mode="aspectFit"
+  />
+</view>

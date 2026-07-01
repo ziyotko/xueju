@@ -1,0 +1,13 @@
+<view class="city-search">
+  <view class="city-search__city" bindtap="onCityTap">
+    <text>{{city}}</text>
+    <app-icon name="chevron-down" size="16" color="#111827" />
+  </view>
+  <view class="city-search__input" bindtap="onSearchTap">
+    <app-icon name="search" size="18" color="#94A3B8" />
+    <text>{{placeholder}}</text>
+  </view>
+  <view class="city-search__notice" bindtap="onNotifyTap">
+    <app-icon name="notification" size="22" color="#111827" />
+  </view>
+</view>

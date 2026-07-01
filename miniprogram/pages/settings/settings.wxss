@@ -1,0 +1,1 @@
+.settings-page{min-height:100vh;padding:24rpx 28rpx;background:#f6f8fc;box-sizing:border-box}.setting-card{padding:0 26rpx;margin-bottom:22rpx}.setting-row{height:92rpx;border-top:2rpx solid #f1f4fa;display:flex;align-items:center;justify-content:space-between;color:#111827;font-size:28rpx;font-weight:800}.setting-row:first-child{border-top:0}.setting-row.danger{color:#ef4444}

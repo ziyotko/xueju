@@ -1,0 +1,13 @@
+<view class="user-page safe-bottom">
+  <view class="user-card card">
+    <view class="avatar big">{{initial}}</view>
+    <view class="name-row"><text>{{name}}</text><app-icon name="check-circle" size="16" active /></view>
+    <view class="meta">{{level}} · {{credit}}</view>
+    <view class="tags"><text wx:for="{{tags}}" wx:key="*this">{{item}}</text></view>
+  </view>
+  <view class="user-card card">
+    <view class="section-title">同滑评价</view>
+    <view class="review">准时、沟通顺畅，水平描述真实，适合一起刷道。</view>
+  </view>
+  <view class="bottom-actions"><button class="outline" bindtap="report">举报</button><button class="primary" bindtap="follow">关注</button></view>
+</view>

@@ -1,6 +1,14 @@
 {
-  "navigationBarTitleText": "发现行程",
+  "navigationBarTitleText": "雪局 SnowMeet",
   "navigationBarBackgroundColor": "#f4f7ff",
-  "navigationBarTextStyle": "black"
+  "navigationBarTextStyle": "black",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "home-top-title": "/components/home-top-title/index",
+    "city-search-bar": "/components/city-search-bar/index",
+    "home-banner": "/components/home-banner/index",
+    "quick-entry-grid": "/components/quick-entry-grid/index",
+    "home-section-tabs": "/components/home-section-tabs/index",
+    "ski-event-card": "/components/ski-event-card/index"
+  }
 }
-

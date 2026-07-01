@@ -1,0 +1,14 @@
+<view class="home-banner">
+  <image class="home-banner__image" mode="aspectFill" src="{{image}}" />
+  <view class="home-banner__mask"></view>
+  <view class="home-banner__shine"></view>
+  <view class="home-banner__content">
+    <view class="home-banner__title">
+      <text wx:for="{{titleLines}}" wx:key="*this" class="home-banner__title-line">{{item}}</text>
+    </view>
+    <view class="home-banner__subtitle">{{subtitle}}</view>
+    <view class="home-banner__button" catchtap="onAction">
+      <text>{{buttonText}}</text>
+    </view>
+  </view>
+</view>

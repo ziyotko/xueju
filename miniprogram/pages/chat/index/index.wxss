@@ -1,0 +1,202 @@
+.messages-page {
+  padding: 28rpx 28rpx calc(92px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: #f6f8fc;
+}
+
+.messages-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
+.page-title {
+  color: #111827;
+  font-size: 42rpx;
+  font-weight: 900;
+}
+
+.page-subtitle {
+  margin-top: 8rpx;
+  color: #64748b;
+  font-size: 23rpx;
+}
+
+.head-action {
+  height: 54rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 22rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.notice-card {
+  padding: 24rpx;
+  display: flex;
+  align-items: center;
+  margin-bottom: 28rpx;
+}
+
+.notice-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 20rpx;
+  background: #eef2ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 18rpx;
+}
+
+.notice-copy {
+  flex: 1;
+}
+
+.notice-title {
+  color: #111827;
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.notice-sub {
+  margin-top: 6rpx;
+  color: #64748b;
+  font-size: 22rpx;
+}
+
+.notice-badge,
+.unread {
+  min-width: 34rpx;
+  height: 34rpx;
+  padding: 0 8rpx;
+  border-radius: 999rpx;
+  background: #ef4444;
+  color: #fff;
+  font-size: 20rpx;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-title {
+  margin-bottom: 16rpx;
+  color: #111827;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.conversation-card {
+  position: relative;
+  padding: 22rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  align-items: center;
+}
+
+.conversation-cover {
+  width: 108rpx;
+  height: 108rpx;
+  border-radius: 22rpx;
+  background: #dce7f7;
+  margin-right: 18rpx;
+  flex-shrink: 0;
+}
+
+.conversation-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversation-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.conversation-title {
+  flex: 1;
+  min-width: 0;
+  color: #111827;
+  font-size: 28rpx;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-time {
+  color: #94a3b8;
+  font-size: 20rpx;
+  flex-shrink: 0;
+}
+
+.conversation-last {
+  margin-top: 10rpx;
+  color: #64748b;
+  font-size: 23rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-tags {
+  margin-top: 12rpx;
+  display: flex;
+  gap: 10rpx;
+}
+
+.conversation-tags text {
+  height: 36rpx;
+  padding: 0 12rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 20rpx;
+  display: flex;
+  align-items: center;
+}
+
+.unread {
+  position: absolute;
+  right: 18rpx;
+  bottom: 22rpx;
+}
+
+.empty-card {
+  padding: 40rpx 28rpx;
+  text-align: center;
+}
+
+.empty-title {
+  color: #111827;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.empty-sub {
+  margin-top: 12rpx;
+  color: #64748b;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.empty-card button {
+  margin-top: 24rpx;
+  width: 220rpx;
+  height: 70rpx;
+  border: 0;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #5965ff, #7b4cff);
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 70rpx;
+}

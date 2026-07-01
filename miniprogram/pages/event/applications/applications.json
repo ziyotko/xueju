@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "申请列表",
+  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index"
+  }
+}

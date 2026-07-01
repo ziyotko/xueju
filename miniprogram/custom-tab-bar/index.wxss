@@ -1,0 +1,28 @@
+.app-tabbar {
+  height: 64px;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid #eef2f7;
+  display: flex;
+  background: #ffffff;
+}
+
+.app-tabbar__item {
+  flex: 1;
+  min-width: 0;
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.app-tabbar__item.is-active {
+  color: #4f46e5;
+}
+
+.app-tabbar__text {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1;
+}

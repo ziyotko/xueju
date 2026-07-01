@@ -17,6 +17,9 @@ func main() {
 	}
 	if db != nil {
 		defer db.Close()
+		if err := database.Migrate(db); err != nil {
+			log.Fatalf("database migration failed: %v", err)
+		}
 	}
 
 	engine := router.New(cfg, db)
@@ -27,4 +30,3 @@ func main() {
 		log.Fatalf("server stopped: %v", err)
 	}
 }
-

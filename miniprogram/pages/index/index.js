@@ -1,43 +1,104 @@
-const { get } = require("../../utils/request")
-const { events } = require("../../data/mock")
+const api = require('../../utils/api')
+const { getEvents } = require('../../utils/store')
+const { heroImage } = require('../../data/mock')
+
+function findEventById(events, id) {
+  return (events || []).find((item) => Number(item.id) === Number(id))
+}
 
 Page({
   data: {
-    events,
-    heroImage: events[0].image,
+    city: '北京',
+    events: [],
+    allEvents: [],
+    heroImage,
+    bannerTitleLines: ['这个周末', '找个水平差不多的人一起滑'],
     health: null,
     loading: false,
-    categories: [
-      { icon: "⌘", text: "全部" },
-      { icon: "◴", text: "周末局" },
-      { icon: "▣", text: "同行交通" },
-      { icon: "⌂", text: "住宿备注" },
-      { icon: "♀", text: "同性同行" },
-      { icon: "☆", text: "新手友好" }
+    quickEntries: [
+      { iconName: 'app', text: '全部', filter: 'all' },
+      { iconName: 'calendar', text: '最新', filter: 'latest' },
+      { iconName: 'vehicle', text: '可拼车', filter: 'carpool' },
+      { iconName: 'home', text: '可拼房', filter: 'room' },
+      { iconName: 'usergroup', text: '同城', filter: 'city' },
+      { iconName: 'user-add', text: '新手友好', filter: 'beginner' }
     ],
-    activeTab: "推荐"
+    tabs: ['推荐', '最新'],
+    activeTab: '推荐'
   },
 
-  onLoad() {
+  onLoad(options) {
+    if (options.city) this.setData({ city: decodeURIComponent(options.city) })
+    this.loadEvents()
     this.loadHealth()
   },
 
-  loadHealth() {
-    get("/health")
-      .then((health) => {
-        this.setData({ health })
-      })
-      .catch(() => {
-        this.setData({ health: null })
-      })
+  onShow() {
+    const tabBar = this.getTabBar && this.getTabBar()
+    if (tabBar) tabBar.setData({ active: 0 })
+    this.loadEvents()
   },
 
-  goCreate() {
-    wx.navigateTo({ url: "/pages/event/create/create" })
+  async loadEvents(params = {}) {
+    this.setData({ loading: true })
+    try {
+      const page = await api.events({ page: 1, pageSize: 50, city: this.data.city, sort: this.data.activeTab === '最新' ? 'latest' : 'recommend', ...params })
+      this.setData({ allEvents: page.list, events: page.list })
+    } catch (error) {
+      const allEvents = getEvents()
+      this.setData({ allEvents, events: allEvents })
+    } finally {
+      this.setData({ loading: false })
+    }
   },
 
+  async loadHealth() {
+    try {
+      const health = await require('../../utils/request').get('/health')
+      this.setData({ health })
+    } catch (error) {
+      this.setData({ health: null })
+    }
+  },
+
+  onTabChange(event) {
+    const active = event.detail.active
+    this.setData({ activeTab: active }, () => this.loadEvents())
+  },
+
+  openFilter() { wx.navigateTo({ url: '/pages/filter/filter' }) },
+
+  onQuickEntry(event) {
+    const item = event.detail.item
+    if (!item) return
+    if (item.filter === 'all') {
+      this.loadEvents()
+      return
+    }
+    const params = {}
+    if (item.filter === 'carpool') params.allowCarPool = true
+    if (item.filter === 'room') params.allowRoomShare = true
+    if (item.filter === 'beginner') params.level = 'beginner'
+    if (item.filter === 'latest') params.sort = 'latest'
+    this.loadEvents(params)
+    wx.showToast({ title: `已筛选：${item.text}`, icon: 'none' })
+  },
+
+  goCreate() { wx.navigateTo({ url: '/pages/event/create/create' }) },
   goDetail(event) {
-    const id = event.currentTarget.dataset.id
+    const id = event.detail && event.detail.id ? event.detail.id : event.currentTarget.dataset.id
     wx.navigateTo({ url: `/pages/event/detail/detail?id=${id}` })
-  }
+  },
+  goApply(event) {
+    const id = event.detail && event.detail.id ? event.detail.id : 1
+    const target = findEventById(this.data.allEvents, id) || findEventById(this.data.events, id)
+    if (target && target.isCreatedByMe) {
+      wx.showToast({ title: '不能申请自己发布的行程', icon: 'none' })
+      return
+    }
+    wx.navigateTo({ url: `/pages/event/apply/apply?eventId=${id}` })
+  },
+  goSearch() { wx.navigateTo({ url: '/pages/search/search' }) },
+  goCity() { wx.navigateTo({ url: '/pages/city/select/select' }) },
+  goNotifications() { wx.navigateTo({ url: '/pages/notifications/notifications' }) }
 })

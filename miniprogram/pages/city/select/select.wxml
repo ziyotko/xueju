@@ -1,0 +1,7 @@
+<view class="city-page">
+  <view class="tip-card card">当前建议先聚焦一个城市冷启动，后续再开放更多雪场圈子。</view>
+  <view class="city-card card" wx:for="{{cities}}" wx:key="name" data-name="{{item.name}}" bindtap="selectCity">
+    <view><view class="city-name">{{item.name}}</view><view class="city-sub">{{item.desc}}</view></view>
+    <view class="select-tag">选择</view>
+  </view>
+</view>

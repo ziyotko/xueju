@@ -6,10 +6,12 @@ Thumbs.db
 backend/.env
 backend/tmp/
 backend/bin/
+backend/uploads/
 
 admin/.env
 admin/node_modules/
 admin/dist/
 
 miniprogram/miniprogram_npm/
+miniprogram/node_modules/
 miniprogram/project.private.config.json

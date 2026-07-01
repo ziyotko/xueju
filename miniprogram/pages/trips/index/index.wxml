@@ -1,35 +1,38 @@
 <view class="page safe-bottom trips-page">
   <view class="tabs">
-    <view class="trip-tab {{index === active ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="*this">{{item}}</view>
+    <view class="trip-tab {{index === active ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="kind" data-index="{{index}}" bindtap="changeTab">{{item.label}}</view>
   </view>
 
-  <view class="group-title">即将出发</view>
-  <view class="trip-card card" wx:for="{{upcoming}}" wx:key="id" data-id="{{item.id}}" bindtap="goDetail">
-    <view class="trip-info">
-      <view class="tag tag-green">{{item.badge}}</view>
-      <view class="trip-title">{{item.resort}}</view>
-      <view class="trip-meta">{{item.date}} {{item.time}}集合</view>
-      <view class="avatars">
-        <view class="avatar">阿</view>
-        <view class="avatar overlap">大</view>
-        <view class="avatar overlap">鹿</view>
-        <text class="joined">等2人加入</text>
+  <view class="group-title">{{currentTitle}}</view>
+
+  <view wx:if="{{loading}}" class="empty-trips card">
+    <view class="empty-trips-title">加载中</view>
+    <view>正在同步你的行程</view>
+  </view>
+
+  <block wx:else>
+    <view class="trip-card card" wx:for="{{trips}}" wx:key="id" data-id="{{item.id}}" bindtap="goDetail">
+      <view class="trip-info">
+        <view class="tag tag-green">{{item.badge}}</view>
+        <view class="trip-title">{{item.resort}}</view>
+        <view class="trip-meta">{{item.date}} {{item.time ? item.time + '集合' : ''}}</view>
+        <view class="trip-meta">{{item.depart}} · {{item.traffic}}</view>
+        <view class="avatars">
+          <view wx:for="{{item.memberInitials}}" wx:key="*this" wx:for-item="avatarItem" wx:for-index="avatarIndex" class="avatar {{avatarIndex > 0 ? 'overlap' : ''}}">{{avatarItem}}</view>
+          <text class="joined">{{item.summaryText}}</text>
+        </view>
+      </view>
+      <view class="trip-side">
+        <image class="trip-image" mode="aspectFill" src="{{item.image}}" />
+        <button wx:if="{{item.canReview}}" catchtap="goReview" data-id="{{item.id}}" class="review-button">评价</button>
       </view>
     </view>
-    <image class="trip-image" mode="aspectFill" src="{{item.image}}" />
-  </view>
 
-  <view class="group-title">更早</view>
-  <view class="history-card card">
-    <view class="history-date">12/09 周六</view>
-    <view class="history-title">云顶滑雪公园</view>
-    <view class="history-meta">独脚兽组员 · 已结束</view>
-  </view>
-  <view class="history-card card">
-    <view class="history-date">12/02 周六</view>
-    <view class="history-title">太舞滑雪小镇</view>
-    <view class="history-meta">3人同行 · 已结束</view>
-  </view>
+    <view class="empty-trips card" wx:if="{{!trips.length}}">
+      <view class="empty-trips-title">{{loadError || emptyText}}</view>
+      <view>{{loadError ? '下拉或切换 Tab 后重试' : '可以去首页申请加入，或者直接发布一个雪局。'}}</view>
+    </view>
+  </block>
 
-  <button class="floating-create" bindtap="goCreate">发布滑雪行程 ＋</button>
+  <view class="tabbar-spacer"></view>
 </view>
