@@ -47,5 +47,10 @@ Page({
   },
 
   goChat() { wx.navigateTo({ url: `/pages/chat/room/room?eventId=${this.data.eventId}` }) },
-  goUser(event) { wx.navigateTo({ url: `/pages/user/detail/detail?id=${event.currentTarget.dataset.id || 1}` }) }
+  goUser(event) {
+    const id = event.currentTarget.dataset.id || 1
+    const request = (this.data.requests || []).find((item) => Number(item.applicantId || item.id) === Number(id))
+    if (request) wx.setStorageSync(`xueju_user_detail_${id}`, request)
+    wx.navigateTo({ url: `/pages/user/detail/detail?id=${id}` })
+  }
 })

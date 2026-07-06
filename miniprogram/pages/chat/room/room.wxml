@@ -1,7 +1,7 @@
 <view class="chat-page">
   <view class="chat-header trip-summary-bar">
     <view class="chat-head-copy">
-      <view class="chat-title">{{event.resort}}（4）</view>
+      <view class="chat-title">{{event.resort}}</view>
       <view class="chat-subtitle">已成局 · {{event.date}} {{event.time}} 出发</view>
     </view>
     <view class="clear-btn" bindtap="clearMessages">清空</view>
@@ -16,7 +16,6 @@
     show-scrollbar="false"
     bindtap="hideActionPanel"
   >
-    <view class="chat-notice">阿飞邀请你加入了群聊</view>
     <view class="chat-notice">你已加入群聊，行程信息以群内同步为准</view>
 
     <view class="message-list">
@@ -34,7 +33,7 @@
   </scroll-view>
 
   <view class="input-area {{actionPanelVisible ? 'panel-open' : ''}}">
-    <view class="risk-tip">{{contentRiskMessage}}</view>
+    <!-- <view class="risk-tip">{{contentRiskMessage}}</view> -->
     <view class="input-bar">
       <view class="tool-btn">
         <app-icon name="microphone" size="22" color="#64748B" />

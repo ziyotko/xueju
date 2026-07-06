@@ -77,7 +77,15 @@ Page({
           const text = `${this.data.event.resort} · ${this.data.event.date} ${this.data.event.time} · ${this.data.event.meetPlace}`
           wx.setClipboardData({ data: text })
         }
-        if (res.tapIndex === 2) wx.navigateTo({ url: `/pages/user/detail/detail?id=${this.data.event.creatorId || 1}` })
+        if (res.tapIndex === 2) {
+          const creatorId = this.data.event.creatorId || 1
+          wx.setStorageSync(`xueju_user_detail_${creatorId}`, {
+            id: creatorId,
+            nickname: this.data.event.creatorName || this.data.event.host,
+            creditScore: 5
+          })
+          wx.navigateTo({ url: `/pages/user/detail/detail?id=${creatorId}` })
+        }
       }
     })
   },
@@ -124,6 +132,11 @@ Page({
   },
   goApplications() { wx.navigateTo({ url: `/pages/event/applications/applications?eventId=${this.data.event.id}` }) },
   goChat() { wx.navigateTo({ url: `/pages/chat/room/room?eventId=${this.data.event.id}` }) },
-  goUser(event) { wx.navigateTo({ url: `/pages/user/detail/detail?id=${event.currentTarget.dataset.id}` }) },
+  goUser(event) {
+    const id = event.currentTarget.dataset.id
+    const member = (this.data.members || []).find((item) => Number(item.id || item.userId) === Number(id))
+    if (member) wx.setStorageSync(`xueju_user_detail_${id}`, member)
+    wx.navigateTo({ url: `/pages/user/detail/detail?id=${id}` })
+  },
   followHost() { wx.showToast({ title: '已关注发起人', icon: 'success' }) }
 })

@@ -14,6 +14,7 @@
       />
     </view>
   </view>
+
   <view class="filter-card card">
     <view class="section-title">玩法需求</view>
     <view class="tag-wrap">
@@ -29,12 +30,15 @@
       />
     </view>
   </view>
+
   <view class="filter-card card">
     <view class="section-title">交通住宿</view>
     <view class="switch-row"><text>只看可拼车</text><t-switch value="{{carpool}}" data-key="carpool" bind:change="onSwitch" /></view>
+    <view class="switch-row"><text>只看可拼房</text><t-switch value="{{roomShare}}" data-key="roomShare" bind:change="onSwitch" /></view>
     <view class="switch-row"><text>只看新手友好</text><t-switch value="{{beginner}}" data-key="beginner" bind:change="onSwitch" /></view>
     <view class="switch-row"><text>只看同性同行</text><t-switch value="{{sameGender}}" data-key="sameGender" bind:change="onSwitch" /></view>
   </view>
+
   <view class="bottom-actions">
     <t-button theme="default" variant="outline" shape="round" customStyle="width: 180rpx; height: 80rpx;" bind:tap="reset">重置</t-button>
     <view class="confirm-action">

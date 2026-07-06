@@ -142,11 +142,20 @@ module.exports = {
     const list = await http.get(`/trips/${kind}`)
     return (list || []).map(mapEvent)
   },
+  async conversations() {
+    return http.get('/chat/conversations')
+  },
+  async markAllConversationsRead() {
+    return http.post('/chat/conversations/read', {})
+  },
   async messages(eventId) {
     return http.get(`/events/${eventId}/messages`)
   },
   async sendMessage(eventId, content, messageType = 'text') {
     return http.post(`/events/${eventId}/messages`, { messageType, content })
+  },
+  async markMessagesRead(eventId) {
+    return http.post(`/events/${eventId}/messages/read`, {})
   },
   async createReview(payload) {
     return http.post('/reviews', payload)

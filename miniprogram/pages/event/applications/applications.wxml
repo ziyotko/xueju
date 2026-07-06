@@ -6,7 +6,7 @@
 
   <view class="request-card card" wx:for="{{requests}}" wx:key="id">
     <view class="between">
-      <view class="row" data-id="{{item.id}}" bindtap="goUser">
+      <view class="row" data-id="{{item.applicantId || item.id}}" bindtap="goUser">
         <view class="avatar">{{item.initial}}</view>
         <view class="person-main">
           <view class="person-name">{{item.name}} <text>{{item.credit}}</text></view>

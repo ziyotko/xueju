@@ -1,3 +1,4 @@
+const api = require('../../utils/api')
 const { getEvents, getFavorites } = require('../../utils/store')
 
 function findEventById(events, id) {
@@ -6,20 +7,34 @@ function findEventById(events, id) {
 
 Page({
   data: {
-    events: []
+    events: [],
+    loading: false
   },
 
-  onShow() {
+  async onShow() {
     const fav = getFavorites()
-    this.setData({ events: getEvents().filter((item) => fav.includes(Number(item.id))) })
+    if (!fav.length) {
+      this.setData({ events: [] })
+      return
+    }
+
+    this.setData({ loading: true })
+    try {
+      const page = await api.events({ page: 1, pageSize: 200 })
+      this.setData({ events: (page.list || []).filter((item) => fav.includes(Number(item.id))) })
+    } catch (error) {
+      this.setData({ events: getEvents().filter((item) => fav.includes(Number(item.id))) })
+    } finally {
+      this.setData({ loading: false })
+    }
   },
 
-  goDetail(e) {
-    wx.navigateTo({ url: `/pages/event/detail/detail?id=${e.detail.id}` })
+  goDetail(event) {
+    wx.navigateTo({ url: `/pages/event/detail/detail?id=${event.detail.id}` })
   },
 
-  goApply(e) {
-    const id = e.detail.id
+  goApply(event) {
+    const id = event.detail.id
     const target = findEventById(this.data.events, id)
     if (target && target.isCreatedByMe) {
       wx.showToast({ title: '不能申请自己发布的行程', icon: 'none' })

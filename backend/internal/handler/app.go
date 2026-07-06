@@ -627,6 +627,78 @@ func (h *AppHandler) Trips(kind string) gin.HandlerFunc {
 	}
 }
 
+func (h *AppHandler) ChatConversations(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	rows, err := h.db.Query(`SELECT e.id, e.title, e.resort_name, e.event_date, e.start_time, e.current_members, e.max_members, e.image_url, e.status,
+			COALESCE(lm.id, 0), COALESCE(lm.content, ''), COALESCE(lm.message_type, ''), lm.created_at, COALESCE(sender.nickname, ''),
+			(SELECT COUNT(*) FROM chat_messages unread WHERE unread.event_id=e.id AND unread.status='normal' AND unread.id > COALESCE(r.last_read_message_id, 0) AND unread.sender_id<>?)
+		FROM event_members em
+		JOIN ski_events e ON e.id=em.event_id
+		LEFT JOIN chat_reads r ON r.event_id=e.id AND r.user_id=?
+		LEFT JOIN chat_messages lm ON lm.id=(SELECT MAX(id) FROM chat_messages last WHERE last.event_id=e.id AND last.status='normal')
+		LEFT JOIN users sender ON sender.id=lm.sender_id
+		WHERE em.user_id=? AND em.status='active' AND e.deleted_at IS NULL AND e.status<>'removed'
+		ORDER BY COALESCE(lm.created_at, e.updated_at) DESC
+		LIMIT 200`, userID, userID, userID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+	list := []gin.H{}
+	totalUnread := int64(0)
+	for rows.Next() {
+		var eventID, lastID int64
+		var title, resortName, imageURL, status, lastContent, messageType, senderName string
+		var eventDate, startTime, lastCreated sql.NullTime
+		var currentMembers, maxMembers int
+		var unread int64
+		if err := rows.Scan(&eventID, &title, &resortName, &eventDate, &startTime, &currentMembers, &maxMembers, &imageURL, &status, &lastID, &lastContent, &messageType, &lastCreated, &senderName, &unread); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		totalUnread += unread
+		lastMessage := "还没有消息，先打个招呼吧"
+		if lastID > 0 {
+			if senderName == "" {
+				senderName = "雪友"
+			}
+			lastMessage = senderName + "：" + lastContent
+			if messageType == "system" {
+				lastMessage = lastContent
+			}
+		}
+		conversationTime := ""
+		if lastCreated.Valid {
+			conversationTime = lastCreated.Time.Format("15:04")
+		} else if startTime.Valid {
+			conversationTime = startTime.Time.Format("01-02")
+		} else if eventDate.Valid {
+			conversationTime = eventDate.Time.Format("01-02")
+		}
+		list = append(list, gin.H{
+			"id":            fmt.Sprintf("conv-%d", eventID),
+			"eventId":       eventID,
+			"title":         defaultString(resortName, title),
+			"image":         imageURL,
+			"time":          conversationTime,
+			"lastMessage":   lastMessage,
+			"lastMessageId": lastID,
+			"status":        status,
+			"memberText":    fmt.Sprintf("已%d人，缺%d人", currentMembers, maxInt(maxMembers-currentMembers, 0)),
+			"unread":        unread,
+		})
+	}
+	response.Success(c, gin.H{"list": list, "unreadCount": totalUnread})
+}
+
 func (h *AppHandler) Messages(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
@@ -651,6 +723,45 @@ func (h *AppHandler) Messages(c *gin.Context) {
 		list = append(list, gin.H{"id": id, "senderId": senderID, "nickname": nickname, "avatarUrl": avatarURL, "messageType": messageType, "content": content, "createdAt": created, "time": created.Format("15:04")})
 	}
 	response.Success(c, list)
+}
+
+func (h *AppHandler) MarkChatRead(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok || !h.canAccessEvent(c, c.Param("id")) {
+		return
+	}
+	if err := h.markChatRead(c.Param("id"), userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"read": true})
+}
+
+func (h *AppHandler) MarkAllChatsRead(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	_, err := h.db.Exec(`INSERT INTO chat_reads (event_id, user_id, last_read_message_id)
+		SELECT em.event_id, ?, COALESCE(MAX(m.id), 0)
+		FROM event_members em
+		JOIN ski_events e ON e.id=em.event_id
+		LEFT JOIN chat_messages m ON m.event_id=em.event_id AND m.status='normal'
+		WHERE em.user_id=? AND em.status='active' AND e.deleted_at IS NULL AND e.status<>'removed'
+		GROUP BY em.event_id
+		ON DUPLICATE KEY UPDATE last_read_message_id=VALUES(last_read_message_id)`, userID, userID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"read": true})
 }
 
 func (h *AppHandler) SendMessage(c *gin.Context) {
@@ -683,6 +794,7 @@ func (h *AppHandler) SendMessage(c *gin.Context) {
 		return
 	}
 	id, _ := result.LastInsertId()
+	_ = h.markChatRead(c.Param("id"), userID)
 	response.Success(c, gin.H{"id": id, "messageType": req.MessageType, "content": req.Content})
 }
 
@@ -1078,6 +1190,16 @@ func (h *AppHandler) canAccessEvent(c *gin.Context, eventID string) bool {
 		return false
 	}
 	return true
+}
+
+func (h *AppHandler) markChatRead(eventID string, userID int64) error {
+	var lastID int64
+	if err := h.db.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM chat_messages WHERE event_id=? AND status='normal'`, eventID).Scan(&lastID); err != nil {
+		return err
+	}
+	_, err := h.db.Exec(`INSERT INTO chat_reads (event_id, user_id, last_read_message_id) VALUES (?, ?, ?)
+		ON DUPLICATE KEY UPDATE last_read_message_id=GREATEST(last_read_message_id, VALUES(last_read_message_id))`, eventID, userID, lastID)
+	return err
 }
 
 func (h *AppHandler) checkText(ctx context.Context, userID int64, field compliance.TextField, content string) error {

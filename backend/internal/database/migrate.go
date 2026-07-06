@@ -117,6 +117,15 @@ func Migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			INDEX idx_chat_event (event_id, id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS chat_reads (
+			id BIGINT PRIMARY KEY AUTO_INCREMENT,
+			event_id BIGINT NOT NULL,
+			user_id BIGINT NOT NULL,
+			last_read_message_id BIGINT NOT NULL DEFAULT 0,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			UNIQUE KEY uniq_chat_read_user_event (event_id, user_id),
+			INDEX idx_chat_reads_user (user_id)
+		)`,
 		`CREATE TABLE IF NOT EXISTS reviews (
 			id BIGINT PRIMARY KEY AUTO_INCREMENT,
 			event_id BIGINT NOT NULL,

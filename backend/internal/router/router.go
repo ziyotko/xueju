@@ -52,8 +52,11 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	auth.GET("/trips/joined", appHandler.Trips("joined"))
 	auth.GET("/trips/pending", appHandler.Trips("pending"))
 	auth.GET("/trips/finished", appHandler.Trips("finished"))
+	auth.GET("/chat/conversations", appHandler.ChatConversations)
+	auth.POST("/chat/conversations/read", appHandler.MarkAllChatsRead)
 	auth.GET("/events/:id/messages", appHandler.Messages)
 	auth.POST("/events/:id/messages", appHandler.SendMessage)
+	auth.POST("/events/:id/messages/read", appHandler.MarkChatRead)
 	auth.POST("/reviews", appHandler.CreateReview)
 	auth.POST("/reports", appHandler.CreateReport)
 

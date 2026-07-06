@@ -6,6 +6,20 @@ function findEventById(events, id) {
   return (events || []).find((item) => Number(item.id) === Number(id))
 }
 
+function applyLocalFilters(events, filters = {}) {
+  let list = events || []
+  if (filters.purposeTags && filters.purposeTags.length) {
+    list = list.filter((item) => {
+      const tags = item.purposeTags || item.displayTags || item.tags || []
+      return filters.purposeTags.every((tag) => tags.includes(tag))
+    })
+  }
+  if (filters.allowBeginner) {
+    list = list.filter((item) => item.allowBeginner || item.levelReq === 'beginner')
+  }
+  return list
+}
+
 Page({
   data: {
     city: '北京',
@@ -15,6 +29,7 @@ Page({
     bannerTitleLines: ['这个周末', '找个水平差不多的人一起滑'],
     health: null,
     loading: false,
+    activeFilters: {},
     quickEntries: [
       { iconName: 'app', text: '全部', filter: 'all' },
       { iconName: 'calendar', text: '最新', filter: 'latest' },
@@ -41,11 +56,21 @@ Page({
 
   async loadEvents(params = {}) {
     this.setData({ loading: true })
+    const filters = { ...(this.data.activeFilters || {}), ...params }
+    const { purposeTags, allowBeginner, ...requestFilters } = filters
+
     try {
-      const page = await api.events({ page: 1, pageSize: 50, city: this.data.city, sort: this.data.activeTab === '最新' ? 'latest' : 'recommend', ...params })
-      this.setData({ allEvents: page.list, events: page.list })
+      const page = await api.events({
+        page: 1,
+        pageSize: 50,
+        city: this.data.city,
+        sort: this.data.activeTab === '最新' ? 'latest' : 'recommend',
+        ...requestFilters
+      })
+      const events = applyLocalFilters(page.list || [], { purposeTags, allowBeginner })
+      this.setData({ allEvents: events, events })
     } catch (error) {
-      const allEvents = getEvents()
+      const allEvents = applyLocalFilters(getEvents(), { purposeTags, allowBeginner })
       this.setData({ allEvents, events: allEvents })
     } finally {
       this.setData({ loading: false })
@@ -66,29 +91,42 @@ Page({
     this.setData({ activeTab: active }, () => this.loadEvents())
   },
 
-  openFilter() { wx.navigateTo({ url: '/pages/filter/filter' }) },
+  openFilter() {
+    const filters = encodeURIComponent(JSON.stringify(this.data.activeFilters || {}))
+    wx.navigateTo({
+      url: `/pages/filter/filter?filters=${filters}`,
+      success: (res) => {
+        res.eventChannel.emit('initFilters', this.data.activeFilters || {})
+        res.eventChannel.on('applyFilters', (filters) => {
+          this.setData({ activeFilters: filters || {} }, () => this.loadEvents())
+        })
+      }
+    })
+  },
 
   onQuickEntry(event) {
     const item = event.detail.item
     if (!item) return
     if (item.filter === 'all') {
-      this.loadEvents()
+      this.setData({ activeFilters: {} }, () => this.loadEvents())
       return
     }
     const params = {}
     if (item.filter === 'carpool') params.allowCarPool = true
     if (item.filter === 'room') params.allowRoomShare = true
-    if (item.filter === 'beginner') params.level = 'beginner'
+    if (item.filter === 'beginner') params.allowBeginner = true
     if (item.filter === 'latest') params.sort = 'latest'
-    this.loadEvents(params)
+    this.setData({ activeFilters: params }, () => this.loadEvents())
     wx.showToast({ title: `已筛选：${item.text}`, icon: 'none' })
   },
 
   goCreate() { wx.navigateTo({ url: '/pages/event/create/create' }) },
+
   goDetail(event) {
     const id = event.detail && event.detail.id ? event.detail.id : event.currentTarget.dataset.id
     wx.navigateTo({ url: `/pages/event/detail/detail?id=${id}` })
   },
+
   goApply(event) {
     const id = event.detail && event.detail.id ? event.detail.id : 1
     const target = findEventById(this.data.allEvents, id) || findEventById(this.data.events, id)
@@ -98,6 +136,7 @@ Page({
     }
     wx.navigateTo({ url: `/pages/event/apply/apply?eventId=${id}` })
   },
+
   goSearch() { wx.navigateTo({ url: '/pages/search/search' }) },
   goCity() { wx.navigateTo({ url: '/pages/city/select/select' }) },
   goNotifications() { wx.navigateTo({ url: '/pages/notifications/notifications' }) }

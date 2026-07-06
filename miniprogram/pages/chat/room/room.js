@@ -11,18 +11,22 @@ function mapMessage(item) {
   const app = getApp()
   const user = app.globalData.user || wx.getStorageSync('xueju_user') || {}
   const mine = Number(item.senderId) === Number(user.id)
-  const name = item.nickname || (mine ? '我' : '雪友')
+  const name = item.nickname || item.displayName || item.name || (mine ? '我' : '雪友')
   return {
     ...item,
     name,
     initial: name.slice(0, 1),
     displayName: name,
     side: mine ? 'right' : 'left',
+    system: item.messageType === 'system' || item.system,
     time: item.time || nowText()
   }
 }
 
 Page({
+  pollTimer: null,
+  loadingMessages: false,
+
   data: {
     eventId: 1,
     event: {},
@@ -50,18 +54,40 @@ Page({
     this.setData({ eventId, event })
     wx.setNavigationBarTitle({ title: event.resort ? `${event.resort}群聊` : '局内群聊' })
     this.loadMessages()
+    this.startPolling()
   },
 
-  onShow() { this.scrollToBottom() },
+  onShow() {
+    this.scrollToBottom()
+    this.startPolling()
+  },
+
+  onHide() {
+    this.stopPolling()
+    this.markRead()
+  },
+
+  onUnload() {
+    this.stopPolling()
+    this.markRead()
+  },
 
   async loadMessages() {
+    if (this.loadingMessages) return
+    this.loadingMessages = true
     try {
       const messages = await api.messages(this.data.eventId)
-      this.setData({ messages: messages.map(mapMessage) }, () => this.scrollToBottom())
+      this.setData({ messages: messages.map(mapMessage) }, () => {
+        this.scrollToBottom()
+        this.markRead()
+      })
     } catch (error) {
       this.setData({ messages: getMessages(this.data.eventId) }, () => this.scrollToBottom())
+    } finally {
+      this.loadingMessages = false
     }
   },
+
   onInput(event) { this.setData({ inputValue: event.detail.value }) },
   onConfirm() { this.send() },
   toggleActionPanel() { this.setData({ actionPanelVisible: !this.data.actionPanelVisible }, () => this.scrollToBottom()) },
@@ -76,7 +102,10 @@ Page({
     try {
       const saved = await api.sendMessage(this.data.eventId, content)
       const next = mapMessage({ ...saved, senderId: (getApp().globalData.user || {}).id, nickname: '我', time: nowText() })
-      this.setData({ messages: this.data.messages.concat(next), inputValue: '', actionPanelVisible: false }, () => this.scrollToBottom())
+      this.setData({ messages: this.data.messages.concat(next), inputValue: '', actionPanelVisible: false }, () => {
+        this.scrollToBottom()
+        this.markRead()
+      })
     } catch (error) {
       const next = this.buildMessage(content, 'right')
       const messages = this.data.messages.concat(next)
@@ -94,9 +123,27 @@ Page({
     this.setData({ inputValue: action.message }, () => this.send())
   },
 
-  buildMessage(content, side = 'right') {
-    return { id: Date.now(), name: side === 'right' ? '我' : '雪友', initial: side === 'right' ? '我' : '雪', displayName: side === 'right' ? '我' : '雪友', side, content, time: nowText() }
+  startPolling() {
+    if (this.pollTimer) return
+    this.pollTimer = setInterval(() => this.loadMessages(), 5000)
   },
+
+  stopPolling() {
+    if (!this.pollTimer) return
+    clearInterval(this.pollTimer)
+    this.pollTimer = null
+  },
+
+  async markRead() {
+    if (!this.data.eventId) return
+    try { await api.markMessagesRead(this.data.eventId) } catch (error) {}
+  },
+
+  buildMessage(content, side = 'right') {
+    const name = side === 'right' ? '我' : '雪友'
+    return { id: Date.now(), name, initial: name.slice(0, 1), displayName: name, side, content, time: nowText() }
+  },
+
   clearMessages() {
     wx.showModal({
       title: '清空聊天记录？',
@@ -108,10 +155,12 @@ Page({
       }
     })
   },
+
   scrollToBottom() {
     const messages = this.data.messages
     const toView = messages.length ? `msg-${messages[messages.length - 1].id}` : ''
     setTimeout(() => this.setData({ toView }), 80)
   },
+
   goBack() { wx.navigateBack() }
 })
