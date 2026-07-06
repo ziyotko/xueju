@@ -1,20 +1,34 @@
 const { requirePrivacyConsent } = require('../../utils/privacy')
 const { profileCover } = require('../../data/mock')
-const { getProfile, getReviews } = require('../../utils/store')
+const { getProfile } = require('../../utils/store')
 const api = require('../../utils/api')
 const { maskPhone } = require('../../utils/phone')
 
+function mapReview(item) {
+  const name = item.reviewerName || item.name || (item.anonymous ? '匿名雪友' : '雪友')
+  return {
+    id: item.id,
+    name,
+    initial: name.slice(0, 1),
+    date: (item.createdAt || '').slice(0, 10) || item.date || '刚刚',
+    credit: item.credit || `评分 ${item.score || 5}.0`,
+    text: item.content || item.text || '',
+    tags: item.positiveTags || item.tags || []
+  }
+}
+
 Page({
   data: {
-    nickname: '大力',
+    nickname: '雪友',
     avatarUrl: '',
-    avatarInitial: '大',
+    avatarInitial: '雪',
     level: '中级',
     bio: '热爱滑雪，周末不是在雪场就是在去雪场的路上。',
     phoneText: '未填写',
     phoneHint: '用于活动报名、预约确认和必要联系',
     profileCover,
     privacyReady: false,
+    reviewCount: 0,
     stats: [
       { value: 0, label: '发起局数' },
       { value: 0, label: '加入局数' },
@@ -59,18 +73,10 @@ Page({
           { value: `${Math.round(profile.goodRate || 100)}%`, label: '好评率' }
         ]
       })
-      const reviews = await api.userReviews(profile.id)
-      this.setData({ reviews: reviews.map((item) => ({ name: item.reviewerName, initial: item.reviewerName.slice(0, 1), date: (item.createdAt || '').slice(0, 10), credit: `评分 ${item.score}.0`, text: item.content, tags: item.positiveTags || [] })) })
+      const reviews = (await api.userReviews(profile.id)).map(mapReview)
+      this.setData({ reviews, reviewCount: reviews.length })
     } catch (error) {
       const profile = getProfile()
-      const storedReviews = getReviews().map((item) => ({
-        name: item.anonymous ? '匿名雪友' : '我',
-        initial: item.anonymous ? '匿' : '我',
-        date: (item.createdAt || '').slice(0, 10) || '刚刚',
-        credit: `评分 ${item.score}.0`,
-        text: item.content,
-        tags: item.positive && item.positive.length ? item.positive : ['沟通顺畅']
-      }))
       this.setData({
         nickname: profile.nickname,
         avatarUrl: profile.avatarLocalPath || profile.avatarUrl || '',
@@ -80,7 +86,8 @@ Page({
         phoneText: maskPhone(profile.phone) || '未填写',
         phoneHint: profile.phone ? '手机号仅自己可见' : '用于活动报名、预约确认和必要联系',
         styles: profile.styles || this.data.styles,
-        reviews: storedReviews
+        reviews: [],
+        reviewCount: 0
       })
     }
   },
@@ -99,5 +106,5 @@ Page({
   goSettings() { wx.navigateTo({ url: '/pages/settings/settings' }) },
   goFavorites() { wx.navigateTo({ url: '/pages/favorites/favorites' }) },
   goNotifications() { wx.navigateTo({ url: '/pages/notifications/notifications' }) },
-  showAllReviews() { wx.showToast({ title: '已展示全部评价', icon: 'none' }) }
+  showAllReviews() { wx.showToast({ title: this.data.reviewCount ? '已展示全部评价' : '暂无收到的评价', icon: 'none' }) }
 })

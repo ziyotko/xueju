@@ -194,6 +194,27 @@
   line-height: 1.55;
 }
 
+.empty-reviews {
+  margin-top: 22rpx;
+  padding: 34rpx 24rpx;
+  border-radius: 18rpx;
+  background: #f7f9fd;
+  text-align: center;
+}
+
+.empty-title {
+  color: #111827;
+  font-size: 26rpx;
+  font-weight: 900;
+}
+
+.empty-sub {
+  margin-top: 8rpx;
+  color: #64748b;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
 .profile-page.safe-bottom {
   padding-bottom: calc(92px + env(safe-area-inset-bottom));
   box-sizing: border-box;

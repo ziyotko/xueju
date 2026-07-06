@@ -22,6 +22,12 @@
   font-size: 32rpx;
 }
 
+.mini {
+  width: 56rpx;
+  height: 56rpx;
+  font-size: 24rpx;
+}
+
 .target-name {
   color: #111827;
   font-size: 30rpx;
@@ -44,6 +50,41 @@
 .score-row {
   display: flex;
   gap: 18rpx;
+}
+
+.target-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.target-chip {
+  min-height: 76rpx;
+  padding: 14rpx 16rpx;
+  border: 2rpx solid #edf1f7;
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  background: #ffffff;
+}
+
+.target-chip.active {
+  border-color: #4f46e5;
+  background: #eef2ff;
+}
+
+.chip-name {
+  color: #111827;
+  font-size: 26rpx;
+  font-weight: 900;
+}
+
+.chip-meta,
+.empty-target {
+  margin-top: 4rpx;
+  color: #64748b;
+  font-size: 22rpx;
 }
 
 .star {
@@ -113,6 +154,10 @@
 
 .submit-btn::after {
   border: 0;
+}
+
+.submit-btn.disabled {
+  opacity: 0.55;
 }
 
 

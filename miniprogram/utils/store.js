@@ -3,7 +3,6 @@ const { events: mockEvents, messages: mockMessages, members: mockMembers } = req
 const KEYS = {
   events: 'xueju_events_v3',
   requests: 'xueju_join_requests_v3',
-  reviews: 'xueju_reviews_v3',
   favorites: 'xueju_favorites_v3',
   profile: 'xueju_profile_v3',
   notifications: 'xueju_notifications_v3'
@@ -45,8 +44,8 @@ function addEvent(form) {
     board: form.board || '单板',
     traffic: form.traffic || '自驾同行',
     people: `已1人，缺${form.people || 2}人`,
-    joinedText: '已 1 人',
-    spotsText: `缺 ${form.people || 2} 人`,
+    joinedText: '已1人',
+    spotsText: `缺${form.people || 2}人`,
     maxPeople: Number(form.people || 2) + 1,
     image: form.image || mockEvents[0].image,
     tags: ['我发起的', `${form.board || '单板'}${form.level || '中级'}`, form.style || '刷道', form.canCarpool ? '可拼车' : '可同行'],
@@ -143,18 +142,6 @@ function saveMessages(eventId = 1, messages) {
   return write(`xueju_chat_messages_${eventId}`, messages)
 }
 
-function getReviews() {
-  return read(KEYS.reviews, [])
-}
-
-function addReview(review) {
-  const list = getReviews()
-  const next = { ...review, id: Date.now(), createdAt: new Date().toISOString() }
-  write(KEYS.reviews, [next].concat(list))
-  addNotification('评价已提交', '你的滑后评价已保存')
-  return next
-}
-
 function getFavorites() {
   return read(KEYS.favorites, [])
 }
@@ -174,7 +161,7 @@ function isFavorite(eventId) {
 
 function getProfile() {
   return read(KEYS.profile, {
-    nickname: '大力',
+    nickname: '雪友',
     avatarUrl: '',
     avatarLocalPath: '',
     phone: '',
@@ -243,8 +230,6 @@ module.exports = {
   updateJoinRequest,
   getMessages,
   saveMessages,
-  getReviews,
-  addReview,
   getFavorites,
   toggleFavorite,
   isFavorite,

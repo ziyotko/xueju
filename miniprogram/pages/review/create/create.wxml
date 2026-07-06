@@ -1,10 +1,30 @@
 <view class="review-page safe-bottom">
   <view class="target-card card">
-    <view class="avatar big">阿</view>
+    <view class="avatar big">{{selectedTarget ? selectedTarget.initial : '雪'}}</view>
     <view>
-      <view class="target-name">阿飞</view>
+      <view class="target-name">{{selectedTarget ? selectedTarget.name : '选择评价对象'}}</view>
       <view class="target-meta">{{targetMeta}}</view>
     </view>
+  </view>
+
+  <view class="form-card card">
+    <view class="section-title">选择同行成员</view>
+    <view class="target-list" wx:if="{{targets.length}}">
+      <view
+        class="target-chip {{item.id === revieweeId ? 'active' : ''}}"
+        wx:for="{{targets}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="selectTarget"
+      >
+        <view class="avatar mini">{{item.initial}}</view>
+        <view>
+          <view class="chip-name">{{item.name}}</view>
+          <view class="chip-meta">{{item.meta}}</view>
+        </view>
+      </view>
+    </view>
+    <view class="empty-target" wx:else>暂无可评价的同行成员</view>
   </view>
 
   <view class="form-card card">
@@ -39,5 +59,5 @@
     </view>
   </view>
 
-  <button class="submit-btn" bindtap="submitReview">提交评价</button>
+  <button class="submit-btn {{!revieweeId || submitting ? 'disabled' : ''}}" bindtap="submitReview">{{submitting ? '提交中...' : '提交评价'}}</button>
 </view>

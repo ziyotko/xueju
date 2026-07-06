@@ -21,7 +21,7 @@
       </view>
       <view class="edit-profile" bindtap="goEditProfile">编辑资料</view>
     </view>
-    <view class="id-line">ID：1028304　北京 · 滑雪</view>
+    <view class="id-line">北京 · 滑雪</view>
     <view class="bio">{{bio}}</view>
     <view class="phone-status">
       <view class="phone-main">手机号：{{phoneText}}</view>
@@ -64,30 +64,36 @@
 
   <view class="info-card card">
     <view class="between block-head">
-      <view class="block-title">收到的评价（28）</view>
+      <view class="block-title">收到的评价（{{reviewCount}}）</view>
       <view class="more" bindtap="showAllReviews">
         <text>查看全部</text>
         <app-icon name="chevron-right" size="18" color="#7B8499" />
       </view>
     </view>
-    <view class="review" wx:for="{{reviews}}" wx:key="name">
-      <view class="row">
-        <view class="avatar">{{item.initial}}</view>
-        <view class="review-main">
-          <view class="review-name">
-            <view class="review-user">
-              <text>{{item.name}}</text>
-              <app-icon name="check-circle" size="14" active />
+    <view wx:if="{{reviews.length}}">
+      <view class="review" wx:for="{{reviews}}" wx:key="id">
+        <view class="row">
+          <view class="avatar">{{item.initial}}</view>
+          <view class="review-main">
+            <view class="review-name">
+              <view class="review-user">
+                <text>{{item.name}}</text>
+                <app-icon name="check-circle" size="14" active />
+              </view>
+              <text>{{item.credit}}</text>
             </view>
-            <text>{{item.credit}}</text>
+            <view class="review-date">{{item.date}}</view>
           </view>
-          <view class="review-date">{{item.date}}</view>
+        </view>
+        <view class="review-text">{{item.text}}</view>
+        <view class="tag-row">
+          <text class="tag tag-green" wx:for="{{item.tags}}" wx:key="*this">{{item}}</text>
         </view>
       </view>
-      <view class="review-text">{{item.text}}</view>
-      <view class="tag-row">
-        <text class="tag tag-green" wx:for="{{item.tags}}" wx:key="*this">{{item}}</text>
-      </view>
+    </view>
+    <view class="empty-reviews" wx:else>
+      <view class="empty-title">还没有收到评价</view>
+      <view class="empty-sub">行程结束后，同行雪友给你的评价会显示在这里。</view>
     </view>
   </view>
   <view class="tabbar-spacer"></view>

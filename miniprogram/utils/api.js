@@ -126,6 +126,12 @@ module.exports = {
   async deleteEvent(eventId) {
     return http.delete(`/events/${eventId}`)
   },
+  async finishEvent(eventId) {
+    return http.post(`/events/${eventId}/finish`, {})
+  },
+  async cancelEvent(eventId) {
+    return http.post(`/events/${eventId}/cancel`, {})
+  },
   async applyEvent(eventId, form) {
     return http.post(`/events/${eventId}/apply`, form)
   },

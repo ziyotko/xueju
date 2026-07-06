@@ -819,6 +819,32 @@ func (h *AppHandler) CreateReview(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid review")
 		return
 	}
+	if req.RevieweeID == userID {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot review yourself")
+		return
+	}
+	var eventStatus string
+	if err := h.db.QueryRow(`SELECT status FROM ski_events WHERE id=? AND deleted_at IS NULL`, req.EventID).Scan(&eventStatus); err != nil {
+		h.sqlError(c, err)
+		return
+	}
+	if eventStatus != "finished" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event is not finished")
+		return
+	}
+	if !h.isActiveEventMember(req.EventID, userID) || !h.isActiveEventMember(req.EventID, req.RevieweeID) {
+		response.Error(c, http.StatusForbidden, response.CodeUnauthorized, "only event members can review each other")
+		return
+	}
+	var existing int
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM reviews WHERE event_id=? AND reviewer_id=? AND reviewee_id=?`, req.EventID, userID, req.RevieweeID).Scan(&existing); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if existing > 0 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "review already exists")
+		return
+	}
 	req.PositiveTags = h.cleanTexts(req.PositiveTags)
 	req.NegativeTags = h.cleanTexts(req.NegativeTags)
 	req.Content = h.cleanText(req.Content)
@@ -834,10 +860,14 @@ func (h *AppHandler) CreateReview(c *gin.Context) {
 	result, err := h.db.Exec(`INSERT INTO reviews (event_id, reviewer_id, reviewee_id, score, positive_tags, negative_tags, content, is_anonymous) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		req.EventID, userID, req.RevieweeID, req.Score, string(positive), string(negative), req.Content, boolInt(req.IsAnonymous))
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "review already exists or cannot be created")
 		return
 	}
 	id, _ := result.LastInsertId()
+	if err := h.refreshUserReviewStats(req.RevieweeID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
 	response.Success(c, gin.H{"id": id})
 }
 
@@ -1192,6 +1222,14 @@ func (h *AppHandler) canAccessEvent(c *gin.Context, eventID string) bool {
 	return true
 }
 
+func (h *AppHandler) isActiveEventMember(eventID, userID int64) bool {
+	var count int
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM event_members WHERE event_id=? AND user_id=? AND status='active'`, eventID, userID).Scan(&count); err != nil {
+		return false
+	}
+	return count > 0
+}
+
 func (h *AppHandler) markChatRead(eventID string, userID int64) error {
 	var lastID int64
 	if err := h.db.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM chat_messages WHERE event_id=? AND status='normal'`, eventID).Scan(&lastID); err != nil {
@@ -1199,6 +1237,24 @@ func (h *AppHandler) markChatRead(eventID string, userID int64) error {
 	}
 	_, err := h.db.Exec(`INSERT INTO chat_reads (event_id, user_id, last_read_message_id) VALUES (?, ?, ?)
 		ON DUPLICATE KEY UPDATE last_read_message_id=GREATEST(last_read_message_id, VALUES(last_read_message_id))`, eventID, userID, lastID)
+	return err
+}
+
+func (h *AppHandler) refreshUserReviewStats(userID int64) error {
+	var avg sql.NullFloat64
+	var total, good int64
+	if err := h.db.QueryRow(`SELECT AVG(score), COUNT(*), SUM(CASE WHEN score >= 4 THEN 1 ELSE 0 END) FROM reviews WHERE reviewee_id=? AND status='normal'`, userID).Scan(&avg, &total, &good); err != nil {
+		return err
+	}
+	credit := 5.0
+	if avg.Valid {
+		credit = avg.Float64
+	}
+	goodRate := 100.0
+	if total > 0 {
+		goodRate = float64(good) * 100 / float64(total)
+	}
+	_, err := h.db.Exec(`UPDATE users SET credit_score=?, good_rate=? WHERE id=?`, credit, goodRate, userID)
 	return err
 }
 

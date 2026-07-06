@@ -138,6 +138,7 @@ func Migrate(db *sql.DB) error {
 			is_anonymous TINYINT NOT NULL DEFAULT 0,
 			status VARCHAR(32) NOT NULL DEFAULT 'normal',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE KEY uniq_review_once (event_id, reviewer_id, reviewee_id),
 			INDEX idx_reviews_reviewee (reviewee_id)
 		)`,
 		`CREATE TABLE IF NOT EXISTS reports (
