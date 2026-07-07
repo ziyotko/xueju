@@ -23,7 +23,7 @@ function tripView(item, active) {
     ...item,
     badge: statusBadge(item, active),
     memberInitials: initials.slice(0, 4),
-    summaryText: active === 2 ? '申请已提交，等待发起人确认' : `${item.joinedText || ''}，${item.spotsText || ''}`,
+    summaryText: active === 2 ? '有待确认申请，请进入详情处理' : `${item.joinedText || ''}，${item.spotsText || ''}`,
     canReview: active === 3
   }
 }

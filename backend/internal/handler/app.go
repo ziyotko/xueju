@@ -660,8 +660,8 @@ func (h *AppHandler) Trips(kind string) gin.HandlerFunc {
 			where = append(where, "m.user_id=? AND m.role='member' AND m.status='active'", "e.status NOT IN ('finished', 'cancelled')")
 			args = append(args, userID)
 		case "pending":
-			where = append(where, "r.applicant_id=? AND r.status='pending'", "e.status NOT IN ('finished', 'cancelled')")
-			args = append(args, userID)
+			where = append(where, "(r.applicant_id=? OR r.creator_id=?) AND r.status='pending'", "e.status NOT IN ('finished', 'cancelled')")
+			args = append(args, userID, userID)
 		case "finished":
 			where = append(where, "(e.status='finished' AND (e.creator_id=? OR m.user_id=?))")
 			args = append(args, userID, userID)
