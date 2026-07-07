@@ -1,23 +1,8 @@
 const api = require('../../utils/api')
-const { getEvents } = require('../../utils/store')
 const { heroImage } = require('../../data/mock')
 
 function findEventById(events, id) {
   return (events || []).find((item) => Number(item.id) === Number(id))
-}
-
-function applyLocalFilters(events, filters = {}) {
-  let list = events || []
-  if (filters.purposeTags && filters.purposeTags.length) {
-    list = list.filter((item) => {
-      const tags = item.purposeTags || item.displayTags || item.tags || []
-      return filters.purposeTags.every((tag) => tags.includes(tag))
-    })
-  }
-  if (filters.allowBeginner) {
-    list = list.filter((item) => item.allowBeginner || item.levelReq === 'beginner')
-  }
-  return list
 }
 
 Page({
@@ -57,7 +42,6 @@ Page({
   async loadEvents(params = {}) {
     this.setData({ loading: true })
     const filters = { ...(this.data.activeFilters || {}), ...params }
-    const { purposeTags, allowBeginner, ...requestFilters } = filters
 
     try {
       const page = await api.events({
@@ -65,13 +49,13 @@ Page({
         pageSize: 50,
         city: this.data.city,
         sort: this.data.activeTab === '最新' ? 'latest' : 'recommend',
-        ...requestFilters
+        ...filters,
+        purposeTags: (filters.purposeTags || []).join(',')
       })
-      const events = applyLocalFilters(page.list || [], { purposeTags, allowBeginner })
+      const events = page.list || []
       this.setData({ allEvents: events, events })
     } catch (error) {
-      const allEvents = applyLocalFilters(getEvents(), { purposeTags, allowBeginner })
-      this.setData({ allEvents, events: allEvents })
+      this.setData({ allEvents: [], events: [] })
     } finally {
       this.setData({ loading: false })
     }

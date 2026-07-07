@@ -29,7 +29,7 @@
   right: 24rpx;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .right-actions {
@@ -50,55 +50,98 @@
   backdrop-filter: blur(8rpx);
 }
 
+.icon-button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  line-height: 1;
+}
+
+.icon-button::after {
+  border: 0;
+}
+
 .content-card {
-  margin: 22rpx 28rpx 0;
-  padding: 28rpx;
+  margin: 20rpx 24rpx 0;
+  padding: 26rpx;
+  border-radius: 18rpx;
+  box-shadow: 0 10rpx 32rpx rgba(45, 61, 95, 0.06);
 }
 
 .detail-card {
-  margin-top: -58rpx;
+  margin-top: -52rpx;
   position: relative;
   z-index: 2;
-  border-radius: 26rpx;
+  border-radius: 18rpx;
 }
 
 .detail-title {
-  font-size: 36rpx;
+  font-size: 34rpx;
   line-height: 1.22;
   font-weight: 900;
   color: #151b2c;
 }
 
 .detail-sub {
-  margin-top: 12rpx;
-  color: #586276;
-  font-size: 24rpx;
+  margin-top: 10rpx;
+  color: #697386;
+  font-size: 22rpx;
 }
 
 .tag-row {
-  margin-top: 20rpx;
+  margin-top: 18rpx;
+}
+
+.detail-card .tag {
+  height: 34rpx;
+  padding: 0 14rpx;
+  border-radius: 8rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.detail-card .tag-green {
+  background: #e4f8ed;
+  color: #1eb777;
+}
+
+.detail-card .tag-soft {
+  background: #f2f5ff;
+  color: #5362d6;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: 154rpx 1fr;
-  row-gap: 22rpx;
-  margin-top: 28rpx;
-  padding-top: 26rpx;
-  border-top: 2rpx solid #f1f4fa;
-  font-size: 25rpx;
+  grid-template-columns: 142rpx 1fr;
+  margin-top: 18rpx;
+  padding-top: 8rpx;
+  font-size: 24rpx;
 }
 
 .info-label {
-  color: #778197;
+  min-height: 68rpx;
+  color: #222b3f;
   display: flex;
   align-items: center;
-  gap: 8rpx;
+  gap: 0;
+  font-weight: 800;
+}
+
+.info-label app-icon {
+  display: none;
 }
 
 .info-value {
+  min-height: 68rpx;
   color: #1f2937;
-  font-weight: 650;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  line-height: 1.45;
+}
+
+.info-grid > view:nth-child(n+3) {
+  border-top: 2rpx solid #f0f3f8;
 }
 
 .block-title {
@@ -220,31 +263,51 @@
   left: 0;
   right: 0;
   bottom: 0;
-  height: 122rpx;
-  padding: 18rpx 28rpx 28rpx;
+  height: 116rpx;
+  padding: 16rpx 24rpx 24rpx;
   box-sizing: border-box;
   display: flex;
-  gap: 18rpx;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -12rpx 36rpx rgba(55, 72, 128, 0.06);
+  align-items: center;
+  gap: 14rpx;
+  background: #ffffff;
+  box-shadow: 0 -10rpx 30rpx rgba(45, 61, 95, 0.08);
 }
 
-.collect {
-  width: 150rpx;
-  height: 76rpx;
-  border-radius: 22rpx;
+.bottom-actions button {
+  margin: 0;
+  padding: 0;
+}
+
+.bottom-actions button::after {
+  border: 0;
+}
+
+.bottom-actions .collect {
+  width: 132rpx;
+  height: 72rpx;
+  border-radius: 14rpx;
   background: #ffffff;
-  border: 2rpx solid #edf0f7;
+  border: 2rpx solid #e8ebf2;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8rpx;
-  color: #30384b;
-  font-size: 24rpx;
+  gap: 6rpx;
+  color: #20293a;
+  font-size: 23rpx;
+  font-weight: 700;
 }
 
-.apply {
+.bottom-actions .button-primary.apply {
   flex: 1;
+  height: 72rpx;
+  border-radius: 14rpx;
+  background: linear-gradient(135deg, #5866ff 0%, #6e42ff 100%);
+  color: #ffffff;
+  box-shadow: 0 14rpx 28rpx rgba(91, 91, 255, 0.24);
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 72rpx;
+  border: 0;
 }
 
 .detail-page.safe-bottom {
@@ -253,24 +316,28 @@
 
 .bottom-actions {
   bottom: env(safe-area-inset-bottom);
-  height: 132rpx;
+  height: 124rpx;
 }
 
-.manage {
-  width: 150rpx;
-  height: 76rpx;
-  border-radius: 22rpx;
+.bottom-actions .button-outline.manage {
+  flex: 1;
+  height: 72rpx;
+  border-radius: 14rpx;
+  border-color: #6e42ff;
+  color: #6e42ff;
   font-size: 24rpx;
 }
-.chat-action {
-  width: 112rpx;
-  height: 76rpx;
-  border-radius: 22rpx;
+.bottom-actions .button-outline.chat-action {
+  flex: 1;
+  height: 72rpx;
+  border-radius: 14rpx;
+  border-color: #6e42ff;
+  color: #6e42ff;
   font-size: 24rpx;
 }
 
 
-.apply.disabled {
+.bottom-actions .button-primary.apply.disabled {
   background: #cbd5e1;
   box-shadow: none;
 }

@@ -1,5 +1,4 @@
 const api = require('../../../utils/api')
-const { getEvents, getMessages, getNotifications, markNotificationsRead } = require('../../../utils/store')
 
 const statusText = {
   recruiting: '招募中',
@@ -7,24 +6,6 @@ const statusText = {
   finished: '已结束',
   cancelled: '已取消',
   removed: '已下架'
-}
-
-function fallbackConversations() {
-  return getEvents().slice(0, 4).map((event) => {
-    const messages = getMessages(event.id)
-    const last = messages[messages.length - 1]
-    return {
-      id: `conv-${event.id}`,
-      eventId: event.id,
-      title: event.resort,
-      image: event.image,
-      time: last ? last.time : event.time,
-      lastMessage: last ? `${last.displayName || last.name}：${last.content}` : '还没有消息，先打个招呼吧',
-      status: event.badge || '招募中',
-      memberText: event.people || event.joinedText,
-      unread: 0
-    }
-  })
 }
 
 Page({
@@ -51,8 +32,7 @@ Page({
       }))
       this.setData({ conversations, unreadCount: data.unreadCount || 0 })
     } catch (error) {
-      const unreadCount = getNotifications().filter((item) => !item.read).length
-      this.setData({ conversations: fallbackConversations(), unreadCount })
+      this.setData({ conversations: [], unreadCount: 0 })
     } finally {
       this.setData({ loading: false })
     }
@@ -66,9 +46,7 @@ Page({
   async markAllRead() {
     try {
       await api.markAllConversationsRead()
-    } catch (error) {
-      markNotificationsRead()
-    }
+    } catch (error) {}
     this.setData({
       unreadCount: 0,
       conversations: this.data.conversations.map((item) => ({ ...item, unread: 0 }))

@@ -44,8 +44,19 @@ export async function getHealth() {
   return unwrap(http.get<ApiBody<HealthInfo>>("/health"))
 }
 
+export async function loginAdmin(payload: { username: string; password: string }) {
+  return unwrap(http.post<ApiBody<{ token: string; user: { username: string; role: string } }>>("/admin/auth/login", payload))
+}
+
 export async function getAdminDashboard() {
   return unwrap(http.get<ApiBody<AdminDashboard>>("/admin/dashboard"))
+}
+
+export async function saveDict(payload: DictPayload, id?: string | number) {
+  if (id) {
+    return unwrap(http.put<ApiBody<{ id: number }>>(`/admin/dicts/${id}`, payload))
+  }
+  return unwrap(http.post<ApiBody<{ id: number }>>("/admin/dicts", payload))
 }
 
 export async function getAdminPage(resource: AdminResource) {
@@ -74,6 +85,15 @@ export interface AdminActionPayload {
   status?: string
   reason?: string
   result?: string
+}
+
+export interface DictPayload {
+  name: string
+  city: string
+  province: string
+  imageUrl?: string
+  sort?: number
+  status?: string
 }
 
 export interface PageResult<T> {

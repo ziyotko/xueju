@@ -1,5 +1,4 @@
 const api = require('../../../utils/api')
-const { getEventById, addJoinRequest } = require('../../../utils/store')
 const { isValidPhone, maskPhone } = require('../../../utils/phone')
 
 function isOwnEvent(event, profile) {
@@ -47,13 +46,7 @@ Page({
       }
       this.setData({ event, contactPhone: profile.phone || '' })
     } catch (error) {
-      const event = getEventById(id)
-      if (isOwnEvent(event, {})) {
-        wx.showToast({ title: '不能申请自己发布的行程', icon: 'none' })
-        leaveApplyPage(id)
-        return
-      }
-      this.setData({ event })
+      leaveApplyPage(id)
     }
   },
 
@@ -90,12 +83,7 @@ Page({
       }
       wx.showToast({ title: '申请已提交', icon: 'success' })
     } catch (error) {
-      const result = addJoinRequest({ eventId: this.data.event.id, eventTitle: this.data.event.resort, ...payload })
-      if (result.duplicated) {
-        wx.showToast({ title: '你已经提交过申请', icon: 'none' })
-        return
-      }
-      wx.showToast({ title: '申请已保存本地', icon: 'none' })
+      return
     }
     setTimeout(() => wx.switchTab({ url: '/pages/trips/index/index' }), 600)
   }

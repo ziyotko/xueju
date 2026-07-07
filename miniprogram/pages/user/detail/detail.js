@@ -1,5 +1,4 @@
 const api = require('../../../utils/api')
-const { members } = require('../../../data/mock')
 
 const skiTypeText = { snowboard: '单板', ski: '双板', both: '单双板' }
 const levelText = { beginner: '新手', primary: '初级', intermediate: '中级', advanced: '高级' }
@@ -13,32 +12,46 @@ function displayLevel(user) {
   return [skiTypeText[user.skiType] || user.skiType, levelText[user.skiLevel] || user.skiLevel].filter(Boolean).join(' · ') || '滑雪资料待完善'
 }
 
+function currentUserId() {
+  const app = getApp()
+  const user = (app.globalData && app.globalData.user) || wx.getStorageSync('xueju_user') || {}
+  return Number(user.id || 0)
+}
+
 Page({
   data: {
     userId: 0,
+    isSelf: false,
     name: '雪友',
     initial: '雪',
     level: '滑雪资料待完善',
-    credit: '信用 5.0',
-    tags: ['准时', '友好', '水平真实'],
+    credit: '',
+    tags: [],
     reviews: [],
     reviewText: '暂无同滑评价'
   },
 
   async onLoad(options) {
     const userId = Number(options.id || 1)
-    const cached = wx.getStorageSync(`xueju_user_detail_${userId}`) || {}
-    const mock = members.find((item) => Number(item.id) === userId) || {}
-    const user = { ...mock, ...cached }
+    let user = {}
+    try { user = await api.publicUser(userId) } catch (error) {}
+    let myId = currentUserId()
+    if (!myId) {
+      try {
+        const me = await api.me()
+        myId = Number(me.id || 0)
+      } catch (error) {}
+    }
     const name = displayName(user)
 
     this.setData({
       userId,
+      isSelf: !!myId && Number(userId) === myId,
       name,
       initial: user.initial || name.slice(0, 1),
       level: displayLevel(user),
-      credit: user.credit || `信用 ${Number(user.creditScore || 5).toFixed(1)}`,
-      tags: user.tags || ['准时', '友好', '水平真实']
+      credit: user.credit || (user.creditScore ? `信用 ${Number(user.creditScore).toFixed(1)}` : ''),
+      tags: user.styleTags || []
     })
 
     try {
@@ -50,8 +63,15 @@ Page({
     } catch (error) {}
   },
 
-  follow() {
-    wx.showToast({ title: '已关注', icon: 'success' })
+  async follow() {
+    if (this.data.isSelf) {
+      wx.showToast({ title: '不能关注自己', icon: 'none' })
+      return
+    }
+    try {
+      await api.followUser(this.data.userId, true)
+      wx.showToast({ title: '已关注', icon: 'success' })
+    } catch (error) {}
   },
 
   report() {

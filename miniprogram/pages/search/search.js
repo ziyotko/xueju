@@ -1,13 +1,7 @@
 const api = require('../../utils/api')
-const { getEvents } = require('../../utils/store')
 
 function findEventById(events, id) {
   return (events || []).find((item) => Number(item.id) === Number(id))
-}
-
-function localSearch(events, keyword) {
-  if (!keyword) return events
-  return (events || []).filter((item) => JSON.stringify(item).includes(keyword))
 }
 
 Page({
@@ -37,8 +31,7 @@ Page({
       const page = await api.events({ page: 1, pageSize: 50, keyword })
       this.setData({ allEvents: page.list || [], events: page.list || [] })
     } catch (error) {
-      const allEvents = getEvents()
-      this.setData({ allEvents, events: localSearch(allEvents, keyword) })
+      this.setData({ allEvents: [], events: [] })
     } finally {
       this.setData({ loading: false })
     }

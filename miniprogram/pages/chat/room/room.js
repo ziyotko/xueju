@@ -1,5 +1,4 @@
 const { CONTENT_RISK_MESSAGE } = require('../../../constants/compliance')
-const { getEventById, getMessages, saveMessages } = require('../../../utils/store')
 const api = require('../../../utils/api')
 
 function nowText() {
@@ -50,7 +49,7 @@ Page({
   async onLoad(options) {
     const eventId = Number(options.eventId || 1)
     let event = {}
-    try { event = await api.event(eventId) } catch (error) { event = getEventById(eventId) }
+    try { event = await api.event(eventId) } catch (error) {}
     this.setData({ eventId, event })
     wx.setNavigationBarTitle({ title: event.resort ? `${event.resort}群聊` : '局内群聊' })
     this.loadMessages()
@@ -82,7 +81,7 @@ Page({
         this.markRead()
       })
     } catch (error) {
-      this.setData({ messages: getMessages(this.data.eventId) }, () => this.scrollToBottom())
+      this.setData({ messages: [] }, () => this.scrollToBottom())
     } finally {
       this.loadingMessages = false
     }
@@ -107,12 +106,7 @@ Page({
         this.markRead()
       })
     } catch (error) {
-      const next = this.buildMessage(content, 'right')
-      const messages = this.data.messages.concat(next)
-      this.setData({ messages, inputValue: '', actionPanelVisible: false }, () => {
-        saveMessages(this.data.eventId, messages)
-        this.scrollToBottom()
-      })
+      this.setData({ inputValue: content })
     }
   },
 
@@ -145,15 +139,7 @@ Page({
   },
 
   clearMessages() {
-    wx.showModal({
-      title: '清空聊天记录？',
-      content: '仅清空本地演示记录，不影响后端数据。',
-      success: (res) => {
-        if (!res.confirm) return
-        saveMessages(this.data.eventId, [])
-        this.setData({ messages: [] })
-      }
-    })
+    wx.showToast({ title: '聊天记录由后端保存', icon: 'none' })
   },
 
   scrollToBottom() {

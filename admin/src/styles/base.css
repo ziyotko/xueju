@@ -55,6 +55,16 @@ body {
   font-size: 12px;
 }
 
+.brand.large {
+  min-height: auto;
+  padding: 0;
+  color: #111827;
+}
+
+.brand.large .brand-subtitle {
+  color: #718096;
+}
+
 .sidebar .el-menu {
   border-right: 0;
   padding: 8px 12px;
@@ -123,6 +133,30 @@ body {
 
 .el-main {
   padding: 28px;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-panel {
+  width: min(420px, 100%);
+  padding: 32px;
+  border: 1px solid rgba(221, 228, 240, 0.92);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 64px rgba(48, 61, 101, 0.12);
+}
+
+.login-form {
+  margin-top: 28px;
+}
+
+.login-button {
+  width: 100%;
 }
 
 .page-hero {

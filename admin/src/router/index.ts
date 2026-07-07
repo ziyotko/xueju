@@ -1,10 +1,12 @@
 import { createRouter, createWebHistory } from "vue-router"
 import DashboardView from "../views/DashboardView.vue"
 import AdminListView from "../views/AdminListView.vue"
+import LoginView from "../views/LoginView.vue"
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: "/login", name: "login", component: LoginView, meta: { public: true } },
     { path: "/", name: "dashboard", component: DashboardView },
     {
       path: "/users",
@@ -49,6 +51,12 @@ const router = createRouter({
       props: { resource: "dicts", title: "字典管理", actionText: "停用雪场" }
     }
   ]
+})
+
+router.beforeEach((to) => {
+  if (to.meta.public) return true
+  if (localStorage.getItem("xueju_admin_token")) return true
+  return { path: "/login", query: { redirect: to.fullPath } }
 })
 
 export default router

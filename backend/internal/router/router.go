@@ -21,15 +21,17 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	healthHandler := handler.NewHealthHandler(cfg, db)
 	api.GET("/health", healthHandler.Show)
 
-	adminHandler := handler.NewAdminHandler(db)
+	adminHandler := handler.NewAdminHandler(cfg, db)
 	appHandler := handler.NewAppHandler(cfg, db)
 
 	api.POST("/auth/wechat-login", appHandler.WechatLogin)
+	api.POST("/admin/auth/login", adminHandler.Login)
 	api.GET("/events", appHandler.Events)
 	api.GET("/events/:id", appHandler.EventDetail)
 	api.GET("/dict/resorts", appHandler.Resorts)
 	api.GET("/dict/tags", appHandler.Tags)
 	api.GET("/dict/cities", appHandler.Cities)
+	api.GET("/users/:id", appHandler.PublicUser)
 	api.GET("/users/:id/reviews", appHandler.UserReviews)
 
 	auth := api.Group("")
@@ -59,8 +61,17 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	auth.POST("/events/:id/messages/read", appHandler.MarkChatRead)
 	auth.POST("/reviews", appHandler.CreateReview)
 	auth.POST("/reports", appHandler.CreateReport)
+	auth.GET("/favorites", appHandler.Favorites)
+	auth.POST("/events/:id/favorite", appHandler.SetFavorite(true))
+	auth.DELETE("/events/:id/favorite", appHandler.SetFavorite(false))
+	auth.POST("/users/:id/follow", appHandler.SetFollow(true))
+	auth.DELETE("/users/:id/follow", appHandler.SetFollow(false))
+	auth.GET("/notifications", appHandler.Notifications)
+	auth.POST("/notifications/read", appHandler.MarkNotificationsRead)
+	auth.DELETE("/notifications", appHandler.ClearNotifications)
 
 	admin := api.Group("/admin")
+	admin.Use(middleware.AdminJWTAuth(cfg.JWTSecret))
 	admin.GET("/dashboard", adminHandler.Dashboard)
 	admin.GET("/content-reviews", adminHandler.ContentReviews)
 	admin.GET("/reports", adminHandler.Reports)
@@ -71,6 +82,8 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	admin.GET("/messages", adminHandler.Messages)
 	admin.GET("/reviews", adminHandler.Reviews)
 	admin.POST("/:resource/:id/actions", adminHandler.Action)
+	admin.POST("/dicts", adminHandler.SaveDict)
+	admin.PUT("/dicts/:id", adminHandler.SaveDict)
 
 	return r
 }

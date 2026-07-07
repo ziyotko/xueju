@@ -21,7 +21,7 @@
       </view>
       <view class="edit-profile" bindtap="goEditProfile">编辑资料</view>
     </view>
-    <view class="id-line">北京 · 滑雪</view>
+    <view class="id-line">{{city || '未填写城市'}} · 滑雪</view>
     <view class="bio">{{bio}}</view>
     <view class="phone-status">
       <view class="phone-main">手机号：{{phoneText}}</view>
@@ -29,8 +29,8 @@
     </view>
     <view class="tag-row">
       <text class="tag">{{level}}</text>
-      <text class="tag">单板</text>
-      <text class="tag">喜欢刷道和公园</text>
+      <text wx:if="{{skiTypeText}}" class="tag">{{skiTypeText}}</text>
+      <text class="tag" wx:for="{{styles}}" wx:key="*this">{{item}}</text>
     </view>
 
     <view class="stat-grid">

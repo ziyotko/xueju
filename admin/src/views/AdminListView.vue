@@ -7,6 +7,7 @@
         <p class="hero-copy">{{ meta.description }}</p>
       </div>
       <div class="hero-actions">
+        <el-button v-if="resource === 'dicts'" type="primary" @click="openDictDialog()">新增雪场</el-button>
         <el-button :loading="loading" @click="loadData">刷新</el-button>
       </div>
     </section>
@@ -56,6 +57,7 @@
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="showDetail(row)">查看</el-button>
+            <el-button v-if="resource === 'dicts'" link type="primary" @click="openDictDialog(row)">编辑</el-button>
             <el-button link :type="primaryAction(row).danger ? 'danger' : 'primary'" @click="executeAction(row)">
               {{ primaryAction(row).text }}
             </el-button>
@@ -81,13 +83,27 @@
     <el-dialog v-model="detailVisible" title="记录详情" width="560px">
       <pre class="detail-json">{{ selectedRow }}</pre>
     </el-dialog>
+
+    <el-dialog v-model="dictVisible" :title="dictForm.id ? '编辑雪场' : '新增雪场'" width="520px">
+      <el-form label-width="88px">
+        <el-form-item label="雪场名称"><el-input v-model="dictForm.name" /></el-form-item>
+        <el-form-item label="城市"><el-input v-model="dictForm.city" /></el-form-item>
+        <el-form-item label="省份"><el-input v-model="dictForm.province" /></el-form-item>
+        <el-form-item label="图片地址"><el-input v-model="dictForm.imageUrl" /></el-form-item>
+        <el-form-item label="排序"><el-input-number v-model="dictForm.sort" :min="0" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dictVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingDict" @click="submitDict">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
 import { ElMessage, ElMessageBox } from "element-plus"
-import { getAdminPageWithParams, runAdminAction, type AdminResource, type PageResult } from "../api/http"
+import { getAdminPageWithParams, runAdminAction, saveDict, type AdminResource, type PageResult } from "../api/http"
 
 type Row = Record<string, any>
 
@@ -105,6 +121,9 @@ const pageSize = ref(10)
 const detailVisible = ref(false)
 const selectedRow = ref<Row | null>(null)
 const page = ref<PageResult<Row>>({ list: [], page: 1, pageSize: 10, total: 0 })
+const dictVisible = ref(false)
+const savingDict = ref(false)
+const dictForm = ref({ id: 0, name: "", city: "", province: "", imageUrl: "", sort: 0, status: "normal" })
 
 const statusOptions = [
   { label: "全部", value: "all" },
@@ -186,10 +205,46 @@ async function executeAction(row: Row) {
     showDetail(row)
     return
   }
+  if (props.resource === "reports") {
+    const result = await ElMessageBox.prompt("请输入处理结果", "举报处理", {
+      inputValue: row.result || "运营已处理",
+      inputPlaceholder: "例如：已核实并下架相关内容"
+    })
+    await runAdminAction(props.resource, row.id, { ...action, result: result.value })
+    ElMessage.success("操作成功")
+    await loadData()
+    return
+  }
   await ElMessageBox.confirm(`确认执行“${action.text}”？`, "操作确认", { type: action.danger ? "warning" : "info" })
   await runAdminAction(props.resource, row.id, action)
   ElMessage.success("操作成功")
   await loadData()
+}
+
+function openDictDialog(row?: Row) {
+  const extra = row?.extra || {}
+  dictForm.value = {
+    id: Number(row?.id || 0),
+    name: row?.target || "",
+    city: extra.city || "",
+    province: extra.province || "",
+    imageUrl: extra.imageUrl || "",
+    sort: Number(extra.sort || 0),
+    status: row?.status || "normal"
+  }
+  dictVisible.value = true
+}
+
+async function submitDict() {
+  savingDict.value = true
+  try {
+    await saveDict(dictForm.value, dictForm.value.id || undefined)
+    ElMessage.success("保存成功")
+    dictVisible.value = false
+    await loadData()
+  } finally {
+    savingDict.value = false
+  }
 }
 
 function riskType(risk: string) {

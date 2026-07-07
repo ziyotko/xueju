@@ -1,6 +1,7 @@
-const { getProfile, saveLocalFile, saveProfile } = require('../../../utils/store')
 const api = require('../../../utils/api')
 const { isValidPhone } = require('../../../utils/phone')
+
+const styleOptions = ["刷道", "刻滑", "节奏稳", "爱拍照", "不赶时间", "公园", "平花"]
 
 function buildTags(list, selected) {
   return list.map((text) => ({ text, selected: selected.includes(text) }))
@@ -20,7 +21,7 @@ Page({
     levelIndex: 2,
     skiTypes: ["单板", "双板", "都可以"],
     skiTypeIndex: 0,
-    tags: buildTags(["刷道", "节奏稳", "爱拍照", "不赶时间", "公园", "平花"], ["刷道", "节奏稳", "爱拍照"])
+    tags: buildTags(styleOptions, ["刷道", "节奏稳", "爱拍照"])
   },
 
   async onLoad() {
@@ -34,29 +35,16 @@ Page({
         nickname: profile.nickname || "雪友",
         avatarInitial: (profile.nickname || "雪").slice(0, 1),
         avatarUrl: profile.avatarUrl || "",
-        avatarLocalPath: getProfile().avatarLocalPath || "",
+        avatarLocalPath: "",
         avatarChanged: false,
         city: profile.city || "北京",
         phone: profile.phone || "",
         levelIndex: Math.max(this.data.levels.indexOf(level), 0),
         skiTypeIndex: Math.max(this.data.skiTypes.indexOf(skiType), 0),
-        tags: buildTags(["刷道", "节奏稳", "爱拍照", "不赶时间", "公园", "平花"], profile.styleTags || [])
+        tags: buildTags(styleOptions, profile.styleTags || [])
       })
     } catch (error) {
-      const profile = getProfile()
-      this.setData({
-        nickname: profile.nickname,
-        avatarInitial: (profile.nickname || "雪").slice(0, 1),
-        avatarUrl: profile.avatarUrl || "",
-        avatarLocalPath: profile.avatarLocalPath || "",
-        avatarChanged: false,
-        city: profile.city,
-        phone: profile.phone || "",
-        bio: profile.bio,
-        levelIndex: Math.max(this.data.levels.indexOf(profile.level), 0),
-        skiTypeIndex: Math.max(this.data.skiTypes.indexOf(profile.skiType), 0),
-        tags: buildTags(["刷道", "节奏稳", "爱拍照", "不赶时间", "公园", "平花"], profile.styles || [])
-      })
+      wx.showToast({ title: "资料加载失败，请稍后重试", icon: "none" })
     }
   },
 
@@ -105,19 +93,14 @@ Page({
     const skiType = ["snowboard", "ski", "both"][this.data.skiTypeIndex]
     try {
       let avatarUrl = this.data.avatarUrl
-      const avatarLocalPath = this.data.avatarChanged ? await saveLocalFile(this.data.avatarLocalPath || this.data.avatarUrl) : this.data.avatarLocalPath
       if (this.data.avatarChanged && avatarUrl && !/^https?:\/\//.test(avatarUrl)) {
         const uploaded = await api.uploadAvatar(avatarUrl)
         avatarUrl = uploaded.url
       }
       await api.updateMe({ nickname: this.data.nickname, avatarUrl, phone, city: this.data.city, skiLevel, skiType, styleTags, favoriteResorts: [], genderVisible: true, hasCar: false })
-      saveProfile({ nickname: this.data.nickname, avatarUrl, avatarLocalPath, phone, city: this.data.city, bio: this.data.bio, level: this.data.levels[this.data.levelIndex], skiType: this.data.skiTypes[this.data.skiTypeIndex], styles: styleTags })
       wx.showToast({ title: "资料已保存", icon: "success" })
+      setTimeout(() => wx.navigateBack(), 600)
     } catch (error) {
-      const avatarLocalPath = this.data.avatarChanged ? await saveLocalFile(this.data.avatarLocalPath || this.data.avatarUrl) : this.data.avatarLocalPath
-      saveProfile({ nickname: this.data.nickname, avatarUrl: this.data.avatarUrl, avatarLocalPath, phone, city: this.data.city, bio: this.data.bio, level: this.data.levels[this.data.levelIndex], skiType: this.data.skiTypes[this.data.skiTypeIndex], styles: styleTags })
-      wx.showToast({ title: "资料已保存本地", icon: "none" })
     }
-    setTimeout(() => wx.navigateBack(), 600)
   }
 })

@@ -1,5 +1,6 @@
 <template>
-  <el-container class="layout">
+  <router-view v-if="isLoginPage" />
+  <el-container v-else class="layout">
     <el-aside width="248px" class="sidebar">
       <div class="brand">
         <div class="brand-mark">雪</div>
@@ -65,6 +66,7 @@
         <div class="topbar-actions">
           <el-tag effect="plain" type="success">API 接入</el-tag>
           <el-button round @click="openDocs">运营指南</el-button>
+          <el-button round @click="logout">退出</el-button>
         </div>
       </el-header>
 
@@ -77,11 +79,20 @@
 
 <script setup lang="ts">
 import { Calendar, ChatDotRound, Collection, HomeFilled, Star, Tickets, User, Warning } from "@element-plus/icons-vue"
-import { useRoute } from "vue-router"
+import { computed } from "vue"
+import { useRoute, useRouter } from "vue-router"
 
 const route = useRoute()
+const router = useRouter()
+const isLoginPage = computed(() => route.path === "/login")
 
 function openDocs() {
   window.open("https://developers.weixin.qq.com/miniprogram/product/", "_blank")
+}
+
+function logout() {
+  localStorage.removeItem("xueju_admin_token")
+  localStorage.removeItem("xueju_admin_user")
+  router.replace("/login")
 }
 </script>

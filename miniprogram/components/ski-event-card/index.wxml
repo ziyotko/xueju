@@ -37,10 +37,18 @@
     <text class="ski-card__tag" wx:for="{{event.displayTags}}" wx:key="*this">{{item}}</text>
   </view>
 
+  <view class="ski-card__avatars">
+    <view class="ski-card__avatar" wx:for="{{event.memberAvatars}}" wx:key="id">
+      <image wx:if="{{item.avatarUrl}}" class="ski-card__avatar-image" mode="aspectFill" src="{{item.avatarUrl}}" />
+      <text wx:else>{{item.initial}}</text>
+    </view>
+  </view>
+
   <view class="ski-card__footer">
     <view class="ski-card__host">
-      <view class="ski-card__avatars">
-        <view class="ski-card__avatar" wx:for="{{event.memberInitials}}" wx:key="*this">{{item}}</view>
+      <view class="ski-card__host-avatar">
+        <image wx:if="{{event.hostAvatarUrl}}" class="ski-card__avatar-image" mode="aspectFill" src="{{event.hostAvatarUrl}}" />
+        <text wx:else>{{event.hostInitial}}</text>
       </view>
       <view class="ski-card__host-copy">
         <view class="ski-card__host-name">

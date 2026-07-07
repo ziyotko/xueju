@@ -1,10 +1,10 @@
 .ski-card {
-  min-height: 184px;
-  padding: 16px;
-  border-radius: 18px;
+  min-height: 204px;
+  padding: 16px 16px 14px;
+  border-radius: 16px;
   box-sizing: border-box;
   background: #ffffff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.05);
   overflow: hidden;
 }
 
@@ -12,7 +12,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
 }
 
 .ski-card__copy {
@@ -21,19 +21,19 @@
 }
 
 .ski-card__side {
-  width: 112px;
-  flex: 0 0 112px;
+  width: 104px;
+  flex: 0 0 104px;
 }
 
 .ski-card__badge {
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 7px;
   display: inline-flex;
   align-items: center;
   background: #dcfce7;
   color: #16a34a;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1;
 }
@@ -41,7 +41,7 @@
 .ski-card__title {
   margin-top: 8px;
   color: #111827;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.28;
   overflow: hidden;
@@ -52,11 +52,11 @@
 }
 
 .ski-card__meta {
-  margin-top: 8px;
+  margin-top: 9px;
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 10px;
-  color: #64748b;
+  gap: 5px 8px;
+  color: #8992a3;
   font-size: 13px;
   line-height: 20px;
 }
@@ -68,6 +68,10 @@
   gap: 4px;
   height: 20px;
   white-space: nowrap;
+}
+
+.ski-card__meta-item app-icon {
+  display: none;
 }
 
 .ski-card__meta-item text {
@@ -83,19 +87,19 @@
 }
 
 .ski-card__image {
-  width: 112px;
-  height: 88px;
+  width: 104px;
+  height: 118px;
   display: block;
-  border-radius: 13px;
+  border-radius: 12px;
   background: #e2e8f0;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
 .ski-card__spots {
-  margin-top: 8px;
+  margin-top: 10px;
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   line-height: 1.1;
   font-weight: 700;
@@ -103,7 +107,7 @@
 }
 
 .ski-card__spots-joined {
-  color: #334155;
+  color: #4f5b73;
 }
 
 .ski-card__spots-missing {
@@ -111,7 +115,9 @@
 }
 
 .ski-card__tags {
-  margin-top: 10px;
+  margin-top: -20px;
+  max-width: calc(100% - 118px);
+  min-height: 24px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -119,14 +125,14 @@
 
 .ski-card__tag {
   height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
+  padding: 0 9px;
+  border-radius: 7px;
   display: inline-flex;
   align-items: center;
-  background: #f1f5f9;
-  color: #64748b;
+  background: #f5f6fa;
+  color: #687185;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -137,7 +143,7 @@
 }
 
 .ski-card__footer {
-  margin-top: 12px;
+  margin-top: 10px;
   padding-top: 12px;
   border-top: 1px solid #eef2f7;
   display: flex;
@@ -155,8 +161,10 @@
 
 .ski-card__avatars {
   flex: 0 0 auto;
+  margin-top: 12px;
   display: flex;
   align-items: center;
+  /* min-height: 28px; */
 }
 
 .ski-card__avatar {
@@ -179,9 +187,29 @@
   margin-left: 0;
 }
 
+.ski-card__avatar-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ski-card__host-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1f2937, #4f46e5);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
 .ski-card__host-copy {
   min-width: 0;
-  margin-left: 9px;
+  margin-left: 8px;
 }
 
 .ski-card__host-name {
@@ -209,16 +237,16 @@
 }
 
 .ski-card__join {
-  width: 68px;
-  height: 36px;
+  width: 70px;
+  height: 38px;
   padding: 0;
   border: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6968ff 0%, #6f40ff 100%);
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
-  line-height: 36px;
+  line-height: 38px;
   box-shadow: 0 8px 18px rgba(79, 70, 229, 0.24);
 }
 

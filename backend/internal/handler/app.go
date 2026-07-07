@@ -108,6 +108,23 @@ func (h *AppHandler) Me(c *gin.Context) {
 	response.Success(c, user)
 }
 
+func (h *AppHandler) PublicUser(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	user, err := h.userByIDParam(c.Param("id"))
+	if err != nil {
+		h.sqlError(c, err)
+		return
+	}
+	delete(user, "openid")
+	delete(user, "phone")
+	if visible, ok := user["genderVisible"].(bool); !visible || !ok {
+		user["gender"] = 0
+	}
+	response.Success(c, user)
+}
+
 func (h *AppHandler) UpdateMe(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
@@ -189,6 +206,29 @@ func (h *AppHandler) Events(c *gin.Context) {
 	if value := strings.TrimSpace(c.Query("date")); value != "" {
 		where = append(where, "e.event_date = ?")
 		args = append(args, value)
+	}
+	if value := strings.TrimSpace(c.Query("allowBeginner")); value != "" {
+		where = append(where, "e.allow_beginner = ?")
+		args = append(args, boolQuery(value))
+	}
+	if tags := c.QueryArray("purposeTags"); len(tags) > 0 {
+		for _, tag := range tags {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			where = append(where, "JSON_CONTAINS(e.purpose_tags, JSON_QUOTE(?))")
+			args = append(args, tag)
+		}
+	} else if tagList := strings.TrimSpace(c.Query("purposeTags")); tagList != "" {
+		for _, tag := range strings.Split(tagList, ",") {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			where = append(where, "JSON_CONTAINS(e.purpose_tags, JSON_QUOTE(?))")
+			args = append(args, tag)
+		}
 	}
 	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
 		where = append(where, "(e.title LIKE ? OR e.resort_name LIKE ? OR e.depart_area LIKE ? OR e.remark LIKE ?)")
@@ -479,6 +519,7 @@ func (h *AppHandler) ApplyEvent(c *gin.Context) {
 		return
 	}
 	id, _ := result.LastInsertId()
+	_ = h.addNotification(creatorID, "有新的加入申请", "有雪友申请加入你的滑雪局，请及时审核", "join_request", "event", mustInt64(c.Param("id")))
 	response.Success(c, gin.H{"id": id, "status": "pending"})
 }
 
@@ -588,6 +629,13 @@ func (h *AppHandler) ReviewJoinRequest(status string) gin.HandlerFunc {
 			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 			return
 		}
+		title := "申请已通过"
+		content := "你申请的滑雪局已通过，快去群聊同步集合信息"
+		if status == "rejected" {
+			title = "申请已拒绝"
+			content = defaultString(req.Reason, "发起人暂未通过你的加入申请")
+		}
+		_ = h.addNotification(applicantID, title, content, "join_request", "event", eventID)
 		response.Success(c, gin.H{"status": status})
 	}
 }
@@ -932,6 +980,140 @@ func (h *AppHandler) CreateReport(c *gin.Context) {
 	response.Success(c, gin.H{"id": id, "status": "pending"})
 }
 
+func (h *AppHandler) Favorites(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	list, total, err := h.eventPageWithJoin(" JOIN event_favorites f ON f.event_id=e.id", []string{"e.deleted_at IS NULL", "e.status <> 'removed'", "f.user_id=?"}, []interface{}{userID}, "e.updated_at DESC", 1, 200)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, pageData(list, 1, 200, total))
+}
+
+func (h *AppHandler) SetFavorite(favorite bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !h.requireDB(c) {
+			return
+		}
+		userID, ok := currentUserID(c)
+		if !ok || !h.ensureActive(c, userID) {
+			return
+		}
+		if favorite {
+			if _, err := h.db.Exec(`INSERT IGNORE INTO event_favorites (user_id, event_id) VALUES (?, ?)`, userID, c.Param("id")); err != nil {
+				response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+				return
+			}
+		} else if _, err := h.db.Exec(`DELETE FROM event_favorites WHERE user_id=? AND event_id=?`, userID, c.Param("id")); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		response.Success(c, gin.H{"favorite": favorite})
+	}
+}
+
+func (h *AppHandler) SetFollow(follow bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !h.requireDB(c) {
+			return
+		}
+		userID, ok := currentUserID(c)
+		if !ok || !h.ensureActive(c, userID) {
+			return
+		}
+		targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil || targetID == 0 {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid user")
+			return
+		}
+		if targetID == userID {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot follow yourself")
+			return
+		}
+		if follow {
+			if _, err := h.db.Exec(`INSERT IGNORE INTO user_follows (follower_id, followee_id) VALUES (?, ?)`, userID, targetID); err != nil {
+				response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+				return
+			}
+			_ = h.addNotification(targetID, "有新的雪友关注你", "对方已关注你的雪友主页", "follow", "user", userID)
+		} else if _, err := h.db.Exec(`DELETE FROM user_follows WHERE follower_id=? AND followee_id=?`, userID, targetID); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		response.Success(c, gin.H{"following": follow})
+	}
+}
+
+func (h *AppHandler) Notifications(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	rows, err := h.db.Query(`SELECT id, title, content, type, target_type, target_id, is_read, created_at FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 100`, userID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+	list := []gin.H{}
+	unread := int64(0)
+	for rows.Next() {
+		var id, targetID int64
+		var title, content, typ, targetType string
+		var read int
+		var created time.Time
+		_ = rows.Scan(&id, &title, &content, &typ, &targetType, &targetID, &read, &created)
+		if read == 0 {
+			unread++
+		}
+		list = append(list, gin.H{"id": id, "title": title, "content": content, "type": typ, "targetType": targetType, "targetId": targetID, "read": read == 1, "time": timeAgo(created), "createdAt": created})
+	}
+	response.Success(c, gin.H{"list": list, "unreadCount": unread})
+}
+
+func (h *AppHandler) MarkNotificationsRead(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	if _, err := h.db.Exec(`UPDATE notifications SET is_read=1 WHERE user_id=?`, userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"read": true})
+}
+
+func (h *AppHandler) ClearNotifications(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	if _, err := h.db.Exec(`DELETE FROM notifications WHERE user_id=?`, userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"cleared": true})
+}
+
 func (h *AppHandler) Resorts(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
@@ -956,7 +1138,7 @@ func (h *AppHandler) Tags(c *gin.Context) {
 	response.Success(c, gin.H{
 		"skiTypes":      []string{"snowboard", "ski", "both"},
 		"levels":        []string{"beginner", "primary", "intermediate", "advanced"},
-		"purposeTags":   []string{"刷道", "练习", "平花", "公园", "拍照", "休闲滑"},
+		"purposeTags":   []string{"刷道", "练习", "平花", "刻滑", "公园", "拍照", "休闲滑"},
 		"trafficTypes":  []string{"self_drive", "high_speed_rail", "bus", "other"},
 		"positiveTags":  []string{"准时", "友好", "水平真实", "沟通顺畅", "安全意识好", "愿意再次同滑"},
 		"negativeTags":  []string{"爽约", "迟到严重", "水平虚假", "临时改计划", "言语不适", "危险行为"},
@@ -1071,6 +1253,14 @@ func (h *AppHandler) userByID(id int64) (gin.H, error) {
 	return gin.H{"id": user.ID, "openid": user.OpenID, "phone": phone.String, "nickname": user.Nickname, "avatarUrl": user.AvatarURL, "gender": user.Gender, "genderVisible": user.GenderVisible == 1, "city": user.City, "skiType": user.SkiType, "skiLevel": user.SkiLevel, "styleTags": jsonList(styleTags.String), "favoriteResorts": jsonList(favoriteResorts.String), "hasCar": user.HasCar == 1, "creditScore": user.CreditScore, "eventCount": user.EventCount, "joinCount": user.JoinCount, "goodRate": user.GoodRate, "status": user.Status, "createdAt": user.CreatedAt, "updatedAt": user.UpdatedAt}, nil
 }
 
+func (h *AppHandler) userByIDParam(id string) (gin.H, error) {
+	parsed, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, sql.ErrNoRows
+	}
+	return h.userByID(parsed)
+}
+
 func (h *AppHandler) eventPage(where []string, args []interface{}, order string, page, pageSize int) ([]gin.H, int64, error) {
 	join := ""
 	if strings.Contains(strings.Join(where, " "), "m.") {
@@ -1079,6 +1269,10 @@ func (h *AppHandler) eventPage(where []string, args []interface{}, order string,
 	if strings.Contains(strings.Join(where, " "), "r.") {
 		join += " LEFT JOIN join_requests r ON r.event_id=e.id"
 	}
+	return h.eventPageWithJoin(join, where, args, order, page, pageSize)
+}
+
+func (h *AppHandler) eventPageWithJoin(join string, where []string, args []interface{}, order string, page, pageSize int) ([]gin.H, int64, error) {
 	whereSQL := " WHERE " + strings.Join(where, " AND ")
 	var total int64
 	if err := h.db.QueryRow(`SELECT COUNT(DISTINCT e.id) FROM ski_events e`+join+whereSQL, args...).Scan(&total); err != nil {
@@ -1086,7 +1280,7 @@ func (h *AppHandler) eventPage(where []string, args []interface{}, order string,
 	}
 	queryArgs := append([]interface{}{}, args...)
 	queryArgs = append(queryArgs, (page-1)*pageSize, pageSize)
-	rows, err := h.db.Query(`SELECT DISTINCT e.id, e.title, e.creator_id, u.nickname, e.resort_id, e.resort_name, e.event_date, e.start_time, e.depart_city, e.depart_area, e.meet_place, e.traffic_type, e.max_members, e.current_members, e.ski_type_req, e.level_req, e.purpose_tags, e.allow_beginner, e.same_gender_only, e.allow_car_pool, e.allow_room_share, e.allow_photo, e.cost_desc, e.remark, e.image_url, e.status, e.view_count, e.created_at, e.updated_at
+	rows, err := h.db.Query(`SELECT DISTINCT e.id, e.title, e.creator_id, u.nickname, u.avatar_url, u.credit_score, u.event_count, e.resort_id, e.resort_name, e.event_date, e.start_time, e.depart_city, e.depart_area, e.meet_place, e.traffic_type, e.max_members, e.current_members, e.ski_type_req, e.level_req, e.purpose_tags, e.allow_beginner, e.same_gender_only, e.allow_car_pool, e.allow_room_share, e.allow_photo, e.cost_desc, e.remark, e.image_url, e.status, e.view_count, e.created_at, e.updated_at
 		FROM ski_events e JOIN users u ON u.id=e.creator_id`+join+whereSQL+` ORDER BY `+order+` LIMIT ?, ?`, queryArgs...)
 	if err != nil {
 		return nil, 0, err
@@ -1100,11 +1294,63 @@ func (h *AppHandler) eventPage(where []string, args []interface{}, order string,
 		}
 		list = append(list, event)
 	}
+	if err := h.attachEventMembers(list); err != nil {
+		return nil, 0, err
+	}
 	return list, total, nil
 }
 
+func (h *AppHandler) attachEventMembers(events []gin.H) error {
+	if len(events) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(events))
+	byID := map[int64][]gin.H{}
+	for _, event := range events {
+		id, ok := event["id"].(int64)
+		if !ok {
+			continue
+		}
+		ids = append(ids, "?")
+		byID[id] = []gin.H{}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	args := make([]interface{}, 0, len(events))
+	for _, event := range events {
+		if id, ok := event["id"].(int64); ok {
+			args = append(args, id)
+		}
+	}
+	rows, err := h.db.Query(`SELECT m.event_id, m.user_id, u.nickname, u.avatar_url, u.ski_type, u.ski_level, u.credit_score, m.role, m.status, m.joined_at
+		FROM event_members m JOIN users u ON u.id=m.user_id
+		WHERE m.status='active' AND m.event_id IN (`+strings.Join(ids, ",")+`)
+		ORDER BY m.event_id ASC, m.role='creator' DESC, m.joined_at ASC`, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var eventID, userID int64
+		var nickname, avatarURL, skiType, skiLevel, role, status string
+		var credit float64
+		var joined time.Time
+		if err := rows.Scan(&eventID, &userID, &nickname, &avatarURL, &skiType, &skiLevel, &credit, &role, &status, &joined); err != nil {
+			return err
+		}
+		byID[eventID] = append(byID[eventID], gin.H{"id": userID, "userId": userID, "nickname": nickname, "avatarUrl": avatarURL, "skiType": skiType, "skiLevel": skiLevel, "creditScore": credit, "role": role, "status": status, "joinedAt": joined})
+	}
+	for _, event := range events {
+		if id, ok := event["id"].(int64); ok {
+			event["members"] = byID[id]
+		}
+	}
+	return nil
+}
+
 func (h *AppHandler) eventByID(id string) (gin.H, error) {
-	row := h.db.QueryRow(`SELECT e.id, e.title, e.creator_id, u.nickname, e.resort_id, e.resort_name, e.event_date, e.start_time, e.depart_city, e.depart_area, e.meet_place, e.traffic_type, e.max_members, e.current_members, e.ski_type_req, e.level_req, e.purpose_tags, e.allow_beginner, e.same_gender_only, e.allow_car_pool, e.allow_room_share, e.allow_photo, e.cost_desc, e.remark, e.image_url, e.status, e.view_count, e.created_at, e.updated_at
+	row := h.db.QueryRow(`SELECT e.id, e.title, e.creator_id, u.nickname, u.avatar_url, u.credit_score, u.event_count, e.resort_id, e.resort_name, e.event_date, e.start_time, e.depart_city, e.depart_area, e.meet_place, e.traffic_type, e.max_members, e.current_members, e.ski_type_req, e.level_req, e.purpose_tags, e.allow_beginner, e.same_gender_only, e.allow_car_pool, e.allow_room_share, e.allow_photo, e.cost_desc, e.remark, e.image_url, e.status, e.view_count, e.created_at, e.updated_at
 		FROM ski_events e JOIN users u ON u.id=e.creator_id WHERE e.id=? AND e.deleted_at IS NULL`, id)
 	return scanEvent(row)
 }
@@ -1130,16 +1376,17 @@ func (h *AppHandler) eventMembers(id string) ([]gin.H, error) {
 
 func scanEvent(scanner interface{ Scan(...interface{}) error }) (gin.H, error) {
 	var id, creatorID, resortID int64
-	var title, creatorName, resortName, departCity, departArea, meetPlace, trafficType, skiTypeReq, levelReq, tags, costDesc, imageURL, status string
+	var title, creatorName, creatorAvatarURL, resortName, departCity, departArea, meetPlace, trafficType, skiTypeReq, levelReq, tags, costDesc, imageURL, status string
 	var eventDate, startTime sql.NullTime
 	var remark sql.NullString
-	var maxMembers, currentMembers, allowBeginner, sameGenderOnly, allowCarPool, allowRoomShare, allowPhoto, viewCount int
+	var maxMembers, currentMembers, creatorEventCount, allowBeginner, sameGenderOnly, allowCarPool, allowRoomShare, allowPhoto, viewCount int
+	var creatorCreditScore float64
 	var createdAt, updatedAt time.Time
-	err := scanner.Scan(&id, &title, &creatorID, &creatorName, &resortID, &resortName, &eventDate, &startTime, &departCity, &departArea, &meetPlace, &trafficType, &maxMembers, &currentMembers, &skiTypeReq, &levelReq, &tags, &allowBeginner, &sameGenderOnly, &allowCarPool, &allowRoomShare, &allowPhoto, &costDesc, &remark, &imageURL, &status, &viewCount, &createdAt, &updatedAt)
+	err := scanner.Scan(&id, &title, &creatorID, &creatorName, &creatorAvatarURL, &creatorCreditScore, &creatorEventCount, &resortID, &resortName, &eventDate, &startTime, &departCity, &departArea, &meetPlace, &trafficType, &maxMembers, &currentMembers, &skiTypeReq, &levelReq, &tags, &allowBeginner, &sameGenderOnly, &allowCarPool, &allowRoomShare, &allowPhoto, &costDesc, &remark, &imageURL, &status, &viewCount, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{"id": id, "title": title, "creatorId": creatorID, "creatorName": creatorName, "resortId": resortID, "resortName": resortName, "eventDate": timeString(eventDate, "2006-01-02"), "startTime": timeString(startTime, "2006-01-02 15:04:05"), "departCity": departCity, "departArea": departArea, "meetPlace": meetPlace, "trafficType": trafficType, "maxMembers": maxMembers, "currentMembers": currentMembers, "skiTypeReq": skiTypeReq, "levelReq": levelReq, "purposeTags": jsonList(tags), "allowBeginner": allowBeginner == 1, "sameGenderOnly": sameGenderOnly == 1, "allowCarPool": allowCarPool == 1, "allowRoomShare": allowRoomShare == 1, "allowPhoto": allowPhoto == 1, "costDesc": costDesc, "remark": remark.String, "imageUrl": imageURL, "status": status, "viewCount": viewCount, "createdAt": createdAt, "updatedAt": updatedAt}, nil
+	return gin.H{"id": id, "title": title, "creatorId": creatorID, "creatorName": creatorName, "creatorAvatarUrl": creatorAvatarURL, "creatorCreditScore": creatorCreditScore, "creatorEventCount": creatorEventCount, "resortId": resortID, "resortName": resortName, "eventDate": timeString(eventDate, "2006-01-02"), "startTime": timeString(startTime, "2006-01-02 15:04:05"), "departCity": departCity, "departArea": departArea, "meetPlace": meetPlace, "trafficType": trafficType, "maxMembers": maxMembers, "currentMembers": currentMembers, "skiTypeReq": skiTypeReq, "levelReq": levelReq, "purposeTags": jsonList(tags), "allowBeginner": allowBeginner == 1, "sameGenderOnly": sameGenderOnly == 1, "allowCarPool": allowCarPool == 1, "allowRoomShare": allowRoomShare == 1, "allowPhoto": allowPhoto == 1, "costDesc": costDesc, "remark": remark.String, "imageUrl": imageURL, "status": status, "viewCount": viewCount, "createdAt": createdAt, "updatedAt": updatedAt}, nil
 }
 
 type userRow struct {
@@ -1286,6 +1533,14 @@ func (h *AppHandler) sqlError(c *gin.Context, err error) {
 	response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 }
 
+func (h *AppHandler) addNotification(userID int64, title, content, typ, targetType string, targetID int64) error {
+	if userID == 0 {
+		return nil
+	}
+	_, err := h.db.Exec(`INSERT INTO notifications (user_id, title, content, type, target_type, target_id) VALUES (?, ?, ?, ?, ?, ?)`, userID, title, content, typ, targetType, targetID)
+	return err
+}
+
 func currentUserID(c *gin.Context) (int64, bool) {
 	value, ok := c.Get(middleware.ContextUserID)
 	if !ok {
@@ -1302,6 +1557,11 @@ func currentUserID(c *gin.Context) (int64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func mustInt64(value string) int64 {
+	id, _ := strconv.ParseInt(value, 10, 64)
+	return id
 }
 
 func pagination(c *gin.Context) (int, int) {
@@ -1358,6 +1618,20 @@ func maxInt(value, min int) int {
 		return min
 	}
 	return value
+}
+
+func timeAgo(value time.Time) string {
+	diff := time.Since(value)
+	if diff < time.Minute {
+		return "刚刚"
+	}
+	if diff < time.Hour {
+		return strconv.Itoa(int(diff.Minutes())) + "分钟前"
+	}
+	if diff < 24*time.Hour {
+		return strconv.Itoa(int(diff.Hours())) + "小时前"
+	}
+	return value.Format("01-02")
 }
 
 func nullString(value string) interface{} {

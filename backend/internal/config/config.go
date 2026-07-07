@@ -17,6 +17,8 @@ type Config struct {
 	WechatAppID     string
 	WechatAppSecret string
 	ContentSecurity bool
+	AdminUsername   string
+	AdminPassword   string
 }
 
 func Load() Config {
@@ -32,6 +34,8 @@ func Load() Config {
 		WechatAppID:     getEnv("WECHAT_APP_ID", ""),
 		WechatAppSecret: getEnv("WECHAT_APP_SECRET", ""),
 		ContentSecurity: getEnvAsBool("WECHAT_CONTENT_SECURITY_ENABLED", false),
+		AdminUsername:   getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:   getEnv("ADMIN_PASSWORD", "xueju-admin"),
 	}
 }
 

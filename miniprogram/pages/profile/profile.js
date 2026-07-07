@@ -1,6 +1,5 @@
 const { requirePrivacyConsent } = require('../../utils/privacy')
 const { profileCover } = require('../../data/mock')
-const { getProfile } = require('../../utils/store')
 const api = require('../../utils/api')
 const { maskPhone } = require('../../utils/phone')
 
@@ -23,6 +22,8 @@ Page({
     avatarUrl: '',
     avatarInitial: '雪',
     level: '中级',
+    skiTypeText: '',
+    city: '',
     bio: '热爱滑雪，周末不是在雪场就是在去雪场的路上。',
     phoneText: '未填写',
     phoneHint: '用于活动报名、预约确认和必要联系',
@@ -56,12 +57,13 @@ Page({
   async loadProfile() {
     try {
       const profile = await api.me()
-      const localProfile = getProfile()
       this.setData({
         nickname: profile.nickname || '雪友',
-        avatarUrl: localProfile.avatarLocalPath || profile.avatarUrl || localProfile.avatarUrl || '',
+        avatarUrl: profile.avatarUrl || '',
         avatarInitial: (profile.nickname || '雪').slice(0, 1),
         level: profile.skiLevel || '中级',
+        skiTypeText: profile.skiType === 'ski' ? '双板' : profile.skiType === 'both' ? '单双板' : profile.skiType === 'snowboard' ? '单板' : '',
+        city: profile.city || '',
         phoneText: maskPhone(profile.phone) || '未填写',
         phoneHint: profile.phone ? '手机号仅自己可见' : '用于活动报名、预约确认和必要联系',
         styles: profile.styleTags && profile.styleTags.length ? profile.styleTags : this.data.styles,
@@ -76,28 +78,15 @@ Page({
       const reviews = (await api.userReviews(profile.id)).map(mapReview)
       this.setData({ reviews, reviewCount: reviews.length })
     } catch (error) {
-      const profile = getProfile()
       this.setData({
-        nickname: profile.nickname,
-        avatarUrl: profile.avatarLocalPath || profile.avatarUrl || '',
-        avatarInitial: (profile.nickname || '雪').slice(0, 1),
-        level: profile.level,
-        bio: profile.bio,
-        phoneText: maskPhone(profile.phone) || '未填写',
-        phoneHint: profile.phone ? '手机号仅自己可见' : '用于活动报名、预约确认和必要联系',
-        styles: profile.styles || this.data.styles,
         reviews: [],
+        phoneText: '未填写',
         reviewCount: 0
       })
     }
   },
 
   onAvatarError() {
-    const localProfile = getProfile()
-    if (localProfile.avatarLocalPath && this.data.avatarUrl !== localProfile.avatarLocalPath) {
-      this.setData({ avatarUrl: localProfile.avatarLocalPath })
-      return
-    }
     this.setData({ avatarUrl: '' })
     wx.showToast({ title: '头像加载失败，请检查网络', icon: 'none' })
   },

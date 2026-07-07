@@ -8,16 +8,46 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"xueju/backend/internal/compliance"
+	"xueju/backend/internal/config"
 	"xueju/backend/internal/response"
 )
 
 type AdminHandler struct {
-	db *sql.DB
+	cfg config.Config
+	db  *sql.DB
 }
 
-func NewAdminHandler(db *sql.DB) *AdminHandler {
-	return &AdminHandler{db: db}
+func NewAdminHandler(cfg config.Config, db *sql.DB) *AdminHandler {
+	return &AdminHandler{cfg: cfg, db: db}
+}
+
+func (h *AdminHandler) Login(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid login payload")
+		return
+	}
+	if req.Username != h.cfg.AdminUsername || req.Password != h.cfg.AdminPassword {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid username or password")
+		return
+	}
+	expiresAt := time.Now().Add(time.Duration(h.cfg.JWTExpiresHours) * time.Hour)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"role":     "admin",
+		"username": req.Username,
+		"exp":      expiresAt.Unix(),
+	})
+	tokenText, err := token.SignedString([]byte(h.cfg.JWTSecret))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"token": tokenText, "expiresAt": expiresAt, "user": gin.H{"username": req.Username, "role": "admin"}})
 }
 
 func (h *AdminHandler) Dashboard(c *gin.Context) {
@@ -219,7 +249,7 @@ func (h *AdminHandler) Dicts(c *gin.Context) {
 		return
 	}
 	page, pageSize := pagination(c)
-	rows, err := h.db.Query(`SELECT id, name, city, province, status, sort, updated_at FROM ski_resorts ORDER BY sort ASC, id ASC LIMIT ?, ?`, (page-1)*pageSize, pageSize)
+	rows, err := h.db.Query(`SELECT id, name, city, province, image_url, status, sort, updated_at FROM ski_resorts ORDER BY sort ASC, id ASC LIMIT ?, ?`, (page-1)*pageSize, pageSize)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -228,14 +258,54 @@ func (h *AdminHandler) Dicts(c *gin.Context) {
 	list := []gin.H{}
 	for rows.Next() {
 		var id, sort int64
-		var name, city, province, status string
+		var name, city, province, imageURL, status string
 		var updated time.Time
-		_ = rows.Scan(&id, &name, &city, &province, &status, &sort, &updated)
-		list = append(list, adminRow(id, name, "雪场字典", city+" · "+province+" · 排序 "+strconv.FormatInt(sort, 10), riskByStatus(status), status, updated, nil))
+		_ = rows.Scan(&id, &name, &city, &province, &imageURL, &status, &sort, &updated)
+		list = append(list, adminRow(id, name, "雪场字典", city+" · "+province+" · 排序 "+strconv.FormatInt(sort, 10), riskByStatus(status), status, updated, gin.H{"city": city, "province": province, "imageUrl": imageURL, "sort": sort}))
 	}
 	var total int64
 	_ = h.db.QueryRow(`SELECT COUNT(*) FROM ski_resorts`).Scan(&total)
 	response.Success(c, pageData(list, page, pageSize, total))
+}
+
+func (h *AdminHandler) SaveDict(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	var req struct {
+		Name     string `json:"name"`
+		City     string `json:"city"`
+		Province string `json:"province"`
+		ImageURL string `json:"imageUrl"`
+		Sort     int64  `json:"sort"`
+		Status   string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.City) == "" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "name and city are required")
+		return
+	}
+	req.Status = defaultString(req.Status, "normal")
+	id := c.Param("id")
+	if id == "" {
+		result, err := h.db.Exec(`INSERT INTO ski_resorts (name, city, province, image_url, sort, status) VALUES (?, ?, ?, ?, ?, ?)`, req.Name, req.City, req.Province, req.ImageURL, req.Sort, req.Status)
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		newID, _ := result.LastInsertId()
+		response.Success(c, gin.H{"id": newID})
+		return
+	}
+	result, err := h.db.Exec(`UPDATE ski_resorts SET name=?, city=?, province=?, image_url=?, sort=?, status=? WHERE id=?`, req.Name, req.City, req.Province, req.ImageURL, req.Sort, req.Status, id)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		return
+	}
+	response.Success(c, gin.H{"id": id})
 }
 
 func (h *AdminHandler) Action(c *gin.Context) {

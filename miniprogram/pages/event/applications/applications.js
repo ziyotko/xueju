@@ -1,5 +1,4 @@
 const api = require('../../../utils/api')
-const { getJoinRequests, updateJoinRequest, getEventById } = require('../../../utils/store')
 
 Page({
   data: {
@@ -13,8 +12,11 @@ Page({
   async onLoad(options) {
     const eventId = Number(options.eventId || 1)
     let event = {}
-    try { event = await api.event(eventId) } catch (error) { event = getEventById(eventId) }
-    this.setData({ eventId, event, summaryText: `当前 ${event.joinedText || '已 1 人'}，最多 ${event.maxPeople || 4} 人 · 审核通过后可进入局内群聊` })
+    try { event = await api.event(eventId) } catch (error) {}
+    const currentText = event.joinedText && event.maxPeople
+      ? `当前 ${event.joinedText}，最多 ${event.maxPeople} 人`
+      : '审核通过后可进入局内群聊'
+    this.setData({ eventId, event, summaryText: currentText })
     this.loadRequests()
   },
 
@@ -25,25 +27,26 @@ Page({
       const requests = await api.applications(this.data.eventId)
       this.setData({ requests: requests.map((item) => ({ ...item, statusLabel: this.data.statusText[item.status] || '待审核' })) })
     } catch (error) {
-      const requests = getJoinRequests()
-        .filter((item) => Number(item.eventId || this.data.eventId) === Number(this.data.eventId))
-        .map((item) => ({ ...item, statusLabel: this.data.statusText[item.status] || '待审核' }))
-      this.setData({ requests })
+      this.setData({ requests: [] })
     }
   },
 
   async approve(event) {
     const id = Number(event.currentTarget.dataset.id)
-    try { await api.reviewApplication(id, true) } catch (error) { updateJoinRequest(id, 'approved') }
-    wx.showToast({ title: '已同意', icon: 'success' })
-    this.loadRequests()
+    try {
+      await api.reviewApplication(id, true)
+      wx.showToast({ title: '已同意', icon: 'success' })
+      this.loadRequests()
+    } catch (error) {}
   },
 
   async reject(event) {
     const id = Number(event.currentTarget.dataset.id)
-    try { await api.reviewApplication(id, false, '发起人已拒绝') } catch (error) { updateJoinRequest(id, 'rejected') }
-    wx.showToast({ title: '已拒绝', icon: 'none' })
-    this.loadRequests()
+    try {
+      await api.reviewApplication(id, false, '发起人已拒绝')
+      wx.showToast({ title: '已拒绝', icon: 'none' })
+      this.loadRequests()
+    } catch (error) {}
   },
 
   goChat() { wx.navigateTo({ url: `/pages/chat/room/room?eventId=${this.data.eventId}` }) },

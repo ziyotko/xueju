@@ -3,13 +3,7 @@
     <image class="cover-image" mode="aspectFill" src="{{event.image}}" />
     <view class="cover-mask"></view>
     <view class="cover-actions">
-      <view class="round" bindtap="goBack">
-        <app-icon name="chevron-left" size="24" color="#FFFFFF" />
-      </view>
       <view class="right-actions">
-        <view class="round" bindtap="tapShare">
-          <app-icon name="share" size="24" color="#FFFFFF" />
-        </view>
         <view class="round" bindtap="openMore">
           <app-icon name="more" size="24" color="#FFFFFF" />
         </view>
@@ -26,16 +20,14 @@
       <view class="tag tag-green">{{event.badge}}</view>
     </view>
     <view class="tag-row">
-      <text class="tag">{{event.board}}{{event.level}}</text>
-      <text class="tag tag-soft">刷道</text>
-      <text class="tag tag-soft">可同行</text>
+      <text class="tag {{index === 0 ? '' : 'tag-soft'}}" wx:for="{{event.detailTags}}" wx:key="*this">{{item}}</text>
     </view>
 
     <view class="info-grid">
       <view class="info-label"><app-icon name="usergroup" size="20" /><text>人数</text></view><view class="info-value">共{{event.maxPeople}}人｜{{event.people}}</view>
       <view class="info-label"><app-icon name="calendar" size="20" /><text>集合时间</text></view><view class="info-value">{{event.date}} {{event.time}}</view>
       <view class="info-label"><app-icon name="location" size="20" /><text>集合地点</text></view><view class="info-value">{{event.meetPlace}}</view>
-      <view class="info-label"><app-icon name="vehicle" size="20" /><text>交通方式</text></view><view class="info-value">{{event.traffic}}，费用 AA</view>
+      <view class="info-label"><app-icon name="vehicle" size="20" /><text>交通方式</text></view><view class="info-value">{{event.trafficCostText}}</view>
       <view class="info-label"><app-icon name="edit" size="20" /><text>备注</text></view><view class="info-value">{{event.note}}</view>
     </view>
   </view>
@@ -50,10 +42,10 @@
             <text>{{event.host}}</text>
             <app-icon name="check-circle" size="14" active />
           </view>
-          <view class="host-credit">{{event.credit}}　发起局数 12</view>
+          <view class="host-credit">{{event.hostCreditText}}</view>
         </view>
       </view>
-      <view class="button-outline follow" bindtap="followHost">关注</view>
+      <view wx:if="{{canFollowHost}}" class="button-outline follow" bindtap="followHost">关注</view>
     </view>
   </view>
 

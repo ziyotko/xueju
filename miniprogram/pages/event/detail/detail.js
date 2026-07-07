@@ -1,15 +1,14 @@
 const api = require('../../../utils/api')
-const { mockMembers, getEventById, toggleFavorite, isFavorite, deleteEvent: deleteStoredEvent } = require('../../../utils/store')
 
 function currentUser() {
   const app = getApp()
   return app.globalData.user || wx.getStorageSync('xueju_user') || {}
 }
 
-function buildActionState(event, requests) {
+function buildActionState(event, requests, options = {}) {
   const user = currentUser()
   const myRequest = (requests || []).find((item) => Number(item.eventId) === Number(event.id))
-  const isCreator = Number(event.creatorId) === Number(user.id) || !!event.isCreatedByMe
+  const isCreator = Number(event.creatorId) === Number(user.id) || (!options.fromShare && !!event.isCreatedByMe)
   const isApproved = myRequest && myRequest.status === 'approved'
   const isPending = myRequest && myRequest.status === 'pending'
   const isFinished = event.status === 'finished'
@@ -25,18 +24,40 @@ function buildActionState(event, requests) {
   }
 }
 
+function enrichEvent(event) {
+  const baseTag = [event.board, event.level].filter(Boolean).join('')
+  const tags = []
+  ;[baseTag].concat(event.displayTags || [], event.tags || []).forEach((item) => {
+    if (item && !tags.includes(item)) tags.push(item)
+  })
+  if (event.allowCarPool && !tags.includes('可拼车')) tags.push('可拼车')
+  if (event.allowRoomShare && !tags.includes('可拼房')) tags.push('可拼房')
+  if (event.allowBeginner && !tags.includes('新手友好')) tags.push('新手友好')
+  if (event.sameGenderOnly && !tags.includes('同性局')) tags.push('同性局')
+
+  return {
+    ...event,
+    detailTags: tags,
+    trafficCostText: [event.traffic, event.costDesc].filter(Boolean).join('，'),
+    hostCreditText: [event.credit, event.creatorEventCount ? `发起局数 ${event.creatorEventCount}` : ''].filter(Boolean).join('　')
+  }
+}
+
 Page({
   data: {
     event: {},
-    members: mockMembers,
-    memberCount: mockMembers.length,
+    members: [],
+    memberCount: 0,
     isFavorite: false,
+    canFollowHost: false,
+    fromShare: false,
     actionState: {},
-    rules: ['遵守雪场通行和水平要求，安全第一', '不线下爽约，互相尊重', '费用 AA，按实际产生均摊', '有任何问题及时沟通']
+    rules: ['遵守雪场通行和水平要求，安全第一', '不线下爽约，互相尊重', '有任何问题及时沟通']
   },
 
   onLoad(options) {
     const id = Number(options.id || 1)
+    this.setData({ fromShare: options.fromShare === '1' })
     this.loadDetail(id)
   },
 
@@ -46,38 +67,38 @@ Page({
 
   async loadDetail(id) {
     try {
-      const event = await api.event(id)
+      const event = enrichEvent(await api.event(id))
       let requests = []
+      let favoriteIds = []
       try { requests = await api.myJoinRequests() } catch (error) {}
+      try {
+        const favorites = await api.favorites()
+        favoriteIds = (favorites.list || []).map((item) => Number(item.id))
+      } catch (error) {}
       const members = event.members || []
+      const actionState = buildActionState(event, requests, { fromShare: this.data.fromShare })
       this.setData({
         event,
         members,
         memberCount: members.length,
-        isFavorite: isFavorite(id),
-        actionState: buildActionState(event, requests)
+        isFavorite: favoriteIds.includes(Number(id)),
+        canFollowHost: !actionState.isCreator,
+        actionState
       })
     } catch (error) {
-      const event = getEventById(id)
-      const members = event.members && event.members.length ? event.members : mockMembers
       this.setData({
-        event,
-        members,
-        memberCount: members.length,
-        isFavorite: isFavorite(id),
-        actionState: buildActionState(event, [])
+        event: {},
+        members: [],
+        memberCount: 0,
+        isFavorite: false,
+        canFollowHost: false,
+        actionState: {}
       })
     }
   },
 
-  goBack() { wx.navigateBack() },
-
   onShareAppMessage() {
-    return { title: this.data.event.resort || '雪局行程', path: `/pages/event/detail/detail?id=${this.data.event.id}` }
-  },
-
-  tapShare() {
-    wx.showToast({ title: '请点右上角转发给雪友', icon: 'none' })
+    return { title: this.data.event.resort || '雪局行程', path: `/pages/event/detail/detail?id=${this.data.event.id}&fromShare=1` }
   },
 
   openMore() {
@@ -130,12 +151,7 @@ Page({
           await api.deleteEvent(this.data.event.id)
           wx.showToast({ title: '已删除', icon: 'success' })
           setTimeout(() => wx.navigateBack(), 500)
-        } catch (error) {
-          if (!this.data.event.isCreatedByMe) return
-          deleteStoredEvent(this.data.event.id)
-          wx.showToast({ title: '已删除本地演示', icon: 'success' })
-          setTimeout(() => wx.navigateBack(), 500)
-        }
+        } catch (error) {}
       }
     })
   },
@@ -159,10 +175,13 @@ Page({
     wx.navigateTo({ url: `/pages/user/detail/detail?id=${creatorId}` })
   },
 
-  toggleCollect() {
-    const collected = toggleFavorite(this.data.event.id)
-    this.setData({ isFavorite: collected })
-    wx.showToast({ title: collected ? '已收藏' : '已取消收藏', icon: 'success' })
+  async toggleCollect() {
+    const collected = !this.data.isFavorite
+    try {
+      await api.setFavorite(this.data.event.id, collected)
+      this.setData({ isFavorite: collected })
+      wx.showToast({ title: collected ? '已收藏' : '已取消收藏', icon: 'success' })
+    } catch (error) {}
   },
 
   handlePrimaryAction() {
@@ -190,5 +209,14 @@ Page({
     if (member) wx.setStorageSync(`xueju_user_detail_${id}`, member)
     wx.navigateTo({ url: `/pages/user/detail/detail?id=${id}` })
   },
-  followHost() { wx.showToast({ title: '已关注发起人', icon: 'success' }) }
+  async followHost() {
+    const creatorId = this.data.event.creatorId
+    if (!creatorId || !this.data.canFollowHost) return
+    const user = currentUser()
+    if (Number(creatorId) === Number(user.id)) return
+    try {
+      await api.followUser(creatorId, true)
+      wx.showToast({ title: '已关注发起人', icon: 'success' })
+    } catch (error) {}
+  }
 })

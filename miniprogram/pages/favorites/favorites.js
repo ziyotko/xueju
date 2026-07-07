@@ -1,5 +1,4 @@
 const api = require('../../utils/api')
-const { getEvents, getFavorites } = require('../../utils/store')
 
 function findEventById(events, id) {
   return (events || []).find((item) => Number(item.id) === Number(id))
@@ -12,18 +11,12 @@ Page({
   },
 
   async onShow() {
-    const fav = getFavorites()
-    if (!fav.length) {
-      this.setData({ events: [] })
-      return
-    }
-
     this.setData({ loading: true })
     try {
-      const page = await api.events({ page: 1, pageSize: 200 })
-      this.setData({ events: (page.list || []).filter((item) => fav.includes(Number(item.id))) })
+      const page = await api.favorites()
+      this.setData({ events: page.list || [] })
     } catch (error) {
-      this.setData({ events: getEvents().filter((item) => fav.includes(Number(item.id))) })
+      this.setData({ events: [] })
     } finally {
       this.setData({ loading: false })
     }

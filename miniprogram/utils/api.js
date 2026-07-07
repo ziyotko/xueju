@@ -36,6 +36,7 @@ function mapEvent(item) {
   const max = item.maxMembers || 1
   const tags = item.purposeTags || []
   const userId = getCurrentUserId()
+  const members = (item.members || []).map(mapMember)
   return {
     ...item,
     resort: item.resortName || item.title,
@@ -52,18 +53,25 @@ function mapEvent(item) {
     tags,
     badge: statusText[item.status] || item.status,
     tagA: tags[0] || (levelText[item.levelReq] || item.levelReq || ''),
-    tagB: tags[1] || (item.allowCarPool ? '可拼车' : '可同行'),
-    displayTags: tags.length ? tags : [levelText[item.levelReq] || item.levelReq || '', skiTypeText[item.skiTypeReq] || item.skiTypeReq || ''],
+    tagB: tags[1] || (item.allowCarPool ? '可拼车' : item.allowRoomShare ? '可拼房' : ''),
+    displayTags: (tags.length ? tags : [levelText[item.levelReq] || item.levelReq || '', skiTypeText[item.skiTypeReq] || item.skiTypeReq || '']).filter(Boolean),
     host: item.creatorName || '雪友',
     hostInitial: (item.creatorName || '雪').slice(0, 1),
-    credit: '信用 5.0',
-    hostSub: `发起人 · ${statusText[item.status] || item.status}`,
+    hostAvatarUrl: item.creatorAvatarUrl || '',
+    credit: `信用 ${Number(item.creatorCreditScore || 5).toFixed(1)}`,
+    hostSub: item.creatorEventCount ? `发起局数 ${item.creatorEventCount}` : `发起人 · ${statusText[item.status] || item.status}`,
+    memberAvatars: members.slice(0, 6).map((member) => ({
+      id: member.id,
+      avatarUrl: member.avatarUrl,
+      initial: member.initial
+    })),
+    memberInitials: members.slice(0, 6).map((member) => member.initial),
     note: item.remark || '',
     image: item.imageUrl || item.image || defaultEventImage,
     imageUrl: item.imageUrl || item.image || '',
     isCreatedByMe: !!item.isCreatedByMe || (userId ? Number(item.creatorId) === Number(userId) : false),
     status: item.status,
-    members: (item.members || []).map(mapMember)
+    members
   }
 }
 
@@ -171,6 +179,28 @@ module.exports = {
   },
   async createReport(payload) {
     return http.post('/reports', payload)
+  },
+  async publicUser(userId) {
+    return http.get(`/users/${userId}`)
+  },
+  async favorites() {
+    const page = await http.get('/favorites')
+    return { ...page, list: (page.list || []).map(mapEvent) }
+  },
+  async setFavorite(eventId, favorite) {
+    return favorite ? http.post(`/events/${eventId}/favorite`, {}) : http.delete(`/events/${eventId}/favorite`)
+  },
+  async followUser(userId, following = true) {
+    return following ? http.post(`/users/${userId}/follow`, {}) : http.delete(`/users/${userId}/follow`)
+  },
+  async notifications() {
+    return http.get('/notifications')
+  },
+  async markNotificationsRead() {
+    return http.post('/notifications/read', {})
+  },
+  async clearNotifications() {
+    return http.delete('/notifications')
   },
   async resorts() {
     return http.get('/dict/resorts')

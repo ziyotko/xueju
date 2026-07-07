@@ -1,8 +1,24 @@
 const { CONTENT_RISK_MESSAGE } = require('../../../constants/compliance')
-const { addEvent } = require('../../../utils/store')
 const { unsplashImages } = require('../../../data/mock')
 const api = require('../../../utils/api')
 const { isValidPhone, maskPhone } = require('../../../utils/phone')
+
+function formatDate(date) {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function splitDepart(value) {
+  const text = (value || '').trim()
+  const knownCities = ['北京', '上海', '广州', '深圳', '杭州', '成都', '重庆', '天津', '南京', '武汉', '西安', '张家口', '吉林', '乌鲁木齐']
+  const city = knownCities.find((item) => text.startsWith(item)) || text.slice(0, 2) || ''
+  return {
+    city,
+    area: city ? text.replace(city, '').trim() : text
+  }
+}
 
 Page({
   data: {
@@ -33,8 +49,8 @@ Page({
       contactPublic: false
     },
     resorts: ['崇礼 · 万龙滑雪场', '南山滑雪场', '云顶滑雪公园', '太舞滑雪小镇'],
-    dates: ['', '2026-12-19', '2026-12-20', '2026-12-26'],
-    departs: ['北京朝阳', '北京海淀', '北京东城', '北京望京'],
+    dateStart: '',
+    dateEnd: '',
     times: ['06:30', '07:00', '07:20', '08:00'],
     boards: ['单板', '双板', '都可以'],
     levels: ['新手', '初级', '中级', '高级'],
@@ -53,6 +69,13 @@ Page({
   },
 
   async onLoad() {
+    const today = new Date()
+    const end = new Date(today)
+    end.setFullYear(end.getFullYear() + 2)
+    this.setData({
+      dateStart: formatDate(today),
+      dateEnd: formatDate(end)
+    })
     try {
       const resorts = await api.resorts()
       if (resorts.length) {
@@ -73,11 +96,19 @@ Page({
     const value = list[index]
     const update = { [`form.${key}`]: value }
     if (key === 'resort') update['form.resortId'] = index + 1
-    if (key === 'depart') {
-      update['form.departCity'] = '北京'
-      update['form.departArea'] = value.replace('北京', '')
-    }
     this.setData(update)
+  },
+  onDateChange(event) {
+    this.setData({ 'form.date': event.detail.value })
+  },
+  onDepartInput(event) {
+    const depart = event.detail.value
+    const parsed = splitDepart(depart)
+    this.setData({
+      'form.depart': depart,
+      'form.departCity': parsed.city,
+      'form.departArea': parsed.area
+    })
   },
   selectPill(event) {
     const key = event.currentTarget.dataset.key
@@ -145,7 +176,7 @@ Page({
   },
   async submit() {
     const f = this.data.form
-    if (!f.resort || !f.depart || !f.meetPlace) {
+    if (!f.resort || !f.date || !f.depart || !f.meetPlace) {
       wx.showToast({ title: '请完善基本信息', icon: 'none' })
       return
     }
@@ -193,10 +224,7 @@ Page({
       wx.showToast({ title: '发布成功', icon: 'success' })
       setTimeout(() => wx.navigateTo({ url: `/pages/event/detail/detail?id=${event.id}` }), 500)
     } catch (error) {
-      const submitForm = { ...f, note: `${f.note || ''}${publicContact}`, purposeTags: [f.style], image: f.image || imageMap[f.resort] || unsplashImages.wanlong }
-      const event = addEvent(submitForm)
-      wx.showToast({ title: '已保存本地演示', icon: 'none' })
-      setTimeout(() => wx.navigateTo({ url: `/pages/event/detail/detail?id=${event.id}` }), 500)
+      wx.showToast({ title: '发布失败，请稍后重试', icon: 'none' })
     }
   }
 })

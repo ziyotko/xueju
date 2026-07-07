@@ -1,4 +1,3 @@
-const { addNotification } = require('../../utils/store')
 const api = require('../../utils/api')
 
 Page({
@@ -22,10 +21,8 @@ Page({
     try {
       await api.createReport({ targetType: this.data.targetType, targetId: this.data.targetId, reason: this.data.reason, content: this.data.content })
       wx.showToast({ title: '已提交', icon: 'success' })
+      setTimeout(() => wx.navigateBack(), 500)
     } catch (error) {
-      addNotification('举报已提交', '后台会尽快处理你的反馈')
-      wx.showToast({ title: '已保存本地', icon: 'none' })
     }
-    setTimeout(() => wx.navigateBack(), 500)
   }
 })

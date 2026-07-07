@@ -154,6 +154,35 @@ func Migrate(db *sql.DB) error {
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			INDEX idx_reports_status (status)
 		)`,
+		`CREATE TABLE IF NOT EXISTS event_favorites (
+			id BIGINT PRIMARY KEY AUTO_INCREMENT,
+			user_id BIGINT NOT NULL,
+			event_id BIGINT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE KEY uniq_favorite_user_event (user_id, event_id),
+			INDEX idx_favorites_user (user_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS user_follows (
+			id BIGINT PRIMARY KEY AUTO_INCREMENT,
+			follower_id BIGINT NOT NULL,
+			followee_id BIGINT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE KEY uniq_follow_user (follower_id, followee_id),
+			INDEX idx_follows_follower (follower_id),
+			INDEX idx_follows_followee (followee_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS notifications (
+			id BIGINT PRIMARY KEY AUTO_INCREMENT,
+			user_id BIGINT NOT NULL,
+			title VARCHAR(128) NOT NULL,
+			content VARCHAR(500) NOT NULL DEFAULT '',
+			type VARCHAR(32) NOT NULL DEFAULT 'system',
+			target_type VARCHAR(32) NOT NULL DEFAULT '',
+			target_id BIGINT NOT NULL DEFAULT 0,
+			is_read TINYINT NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			INDEX idx_notifications_user_read (user_id, is_read, created_at)
+		)`,
 	}
 
 	for _, statement := range statements {

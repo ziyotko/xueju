@@ -1,4 +1,3 @@
-const { getEventById } = require('../../../utils/store')
 const api = require('../../../utils/api')
 
 function markTags(list, selected) {
@@ -46,7 +45,7 @@ Page({
     const eventId = Number(options.eventId || 1)
     const preferredUserId = Number(options.userId || 0)
     let event = {}
-    try { event = await api.event(eventId) } catch (error) { event = getEventById(eventId) }
+    try { event = await api.event(eventId) } catch (error) {}
 
     const myId = currentUserId()
     const targets = (event.members || [])

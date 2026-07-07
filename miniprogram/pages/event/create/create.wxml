@@ -20,12 +20,13 @@
     <picker mode="selector" range="{{resorts}}" data-key="resort" data-list="resorts" bindchange="setPicker">
       <view class="form-row"><text>目的地</text><view class="row-value"><text>{{form.resort}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
     </picker>
-    <picker mode="selector" range="{{dates}}" data-key="date" data-list="dates" bindchange="setPicker">
-      <view class="form-row"><text>出发日期</text><view class="row-value"><text>{{form.date}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+    <picker mode="date" value="{{form.date}}" start="{{dateStart}}" end="{{dateEnd}}" bindchange="onDateChange">
+      <view class="form-row"><text>出发日期</text><view class="row-value"><text>{{form.date || '请选择'}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
     </picker>
-    <picker mode="selector" range="{{departs}}" data-key="depart" data-list="departs" bindchange="setPicker">
-      <view class="form-row"><text>出发地</text><view class="row-value"><text>{{form.depart}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
-    </picker>
+    <view class="form-row">
+      <text>出发地</text>
+      <input class="form-input" value="{{form.depart}}" data-key="depart" bindinput="onDepartInput" placeholder="例如：北京朝阳" />
+    </view>
     <picker mode="selector" range="{{times}}" data-key="time" data-list="times" bindchange="setPicker">
       <view class="form-row"><text>集合时间</text><view class="row-value"><text>{{form.time}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
     </picker>
