@@ -2,7 +2,7 @@ const { login } = require('./utils/request')
 
 App({
   globalData: {
-    apiBaseUrl: "http://10.1.100.82:8080/api",
+    apiBaseUrl: "https://39.97.232.111/api",
     token: "",
     user: null
   },

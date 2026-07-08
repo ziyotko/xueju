@@ -7,6 +7,10 @@ function buildTags(list, selected) {
   return list.map((text) => ({ text, selected: selected.includes(text) }))
 }
 
+function isUploadedImageUrl(url = "") {
+  return /^https?:\/\//.test(url) && !/^https?:\/\/tmp\//.test(url)
+}
+
 Page({
   data: {
     nickname: "大力",
@@ -93,7 +97,7 @@ Page({
     const skiType = ["snowboard", "ski", "both"][this.data.skiTypeIndex]
     try {
       let avatarUrl = this.data.avatarUrl
-      if (this.data.avatarChanged && avatarUrl && !/^https?:\/\//.test(avatarUrl)) {
+      if (this.data.avatarChanged && avatarUrl && !isUploadedImageUrl(avatarUrl)) {
         const uploaded = await api.uploadAvatar(avatarUrl)
         avatarUrl = uploaded.url
       }

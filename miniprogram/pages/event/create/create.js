@@ -20,6 +20,10 @@ function splitDepart(value) {
   }
 }
 
+function isUploadedImageUrl(url = '') {
+  return /^https?:\/\//.test(url) && !/^https?:\/\/tmp\//.test(url)
+}
+
 Page({
   data: {
     form: {
@@ -212,7 +216,7 @@ Page({
       : ''
     try {
       let imageUrl = f.imageUrl || ''
-      if (f.image && /^https?:\/\//.test(f.image)) {
+      if (f.image && isUploadedImageUrl(f.image)) {
         imageUrl = f.image
       } else if (f.image) {
         const uploaded = await api.uploadEventImage(f.image)
