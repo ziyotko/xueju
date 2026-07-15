@@ -4,7 +4,6 @@
       <view class="chat-title">{{event.resort}}</view>
       <view class="chat-subtitle">已成局 · {{event.date}} {{event.time}} 出发</view>
     </view>
-    <view class="clear-btn" bindtap="clearMessages">清空</view>
   </view>
 
   <scroll-view
@@ -17,9 +16,10 @@
     bindtap="hideActionPanel"
   >
     <view class="chat-notice">你已加入群聊，行程信息以群内同步为准</view>
+	<view wx:if="{{nextBeforeId}}" class="chat-notice" bindtap="loadOlder">{{loadingOlder ? '加载中...' : '加载更早消息'}}</view>
 
     <view class="message-list">
-      <view id="msg-{{item.id}}" class="message-row {{item.side}}" wx:for="{{messages}}" wx:key="id">
+	  <view id="msg-{{item.id}}" class="message-row {{item.side}}" wx:for="{{messages}}" wx:key="id" data-id="{{item.id}}" bindlongpress="reportMessage">
         <view wx:if="{{item.side === 'left'}}" class="avatar small">{{item.initial}}</view>
         <view class="bubble {{item.system ? 'system' : ''}}">
           <view class="sender" wx:if="{{item.side === 'left'}}">{{item.displayName}}</view>
@@ -35,9 +35,6 @@
   <view class="input-area {{actionPanelVisible ? 'panel-open' : ''}}">
     <!-- <view class="risk-tip">{{contentRiskMessage}}</view> -->
     <view class="input-bar">
-      <view class="tool-btn">
-        <app-icon name="microphone" size="22" color="#64748B" />
-      </view>
       <input
         value="{{inputValue}}"
         bindinput="onInput"

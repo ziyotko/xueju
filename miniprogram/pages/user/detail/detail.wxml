@@ -3,16 +3,17 @@
     <view class="avatar big">{{initial}}</view>
     <view class="name-row"><text>{{name}}</text><app-icon name="check-circle" size="16" active /></view>
     <view class="meta">{{level}}{{credit ? ' · ' + credit : ''}}</view>
+	<view wx:if="{{bio}}" class="meta">{{bio}}</view>
     <view class="tags"><text wx:for="{{tags}}" wx:key="*this">{{item}}</text></view>
   </view>
 
   <view class="user-card card">
     <view class="section-title">同滑评价</view>
-    <view class="review">{{reviewText}}</view>
+	<view class="review" data-id="{{reviews.length ? reviews[0].id : 0}}" bindlongpress="reportReview">{{reviewText}}</view>
   </view>
 
   <view class="bottom-actions">
     <button class="outline" bindtap="report">举报</button>
-    <button wx:if="{{!isSelf}}" class="primary" bindtap="follow">关注</button>
+	<button wx:if="{{!isSelf}}" class="primary" bindtap="follow">{{following ? '取消关注' : '关注'}}</button>
   </view>
 </view>

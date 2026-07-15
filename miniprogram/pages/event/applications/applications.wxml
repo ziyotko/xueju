@@ -22,6 +22,7 @@
     </view>
     <view class="actions" wx:elif="{{item.status === 'approved'}}">
       <button class="chat" bindtap="goChat">进入群聊</button>
+      <button class="reject" data-user-id="{{item.applicantId}}" loading="{{removingId === item.applicantId}}" disabled="{{removingId > 0}}" bindtap="removeMember">移出成员</button>
     </view>
   </view>
 </view>

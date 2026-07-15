@@ -10,6 +10,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("configuration validation failed: %v", err)
+	}
 
 	db, err := database.Open(cfg.MySQLDSN)
 	if err != nil {

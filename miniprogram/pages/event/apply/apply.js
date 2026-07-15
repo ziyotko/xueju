@@ -1,5 +1,4 @@
 const api = require('../../../utils/api')
-const { isValidPhone, maskPhone } = require('../../../utils/phone')
 
 function isOwnEvent(event, profile) {
   if (!event) return false
@@ -27,8 +26,7 @@ Page({
     skiTypeIndex: 0,
     hasCar: false,
     canCarryPeople: false,
-    contactPhone: '',
-    savePhoneToProfile: false,
+	submitting: false,
     departArea: '北京朝阳',
     message: '单板中级，能连续换刃，想一起刷道互拍。'
   },
@@ -44,7 +42,7 @@ Page({
         leaveApplyPage(id)
         return
       }
-      this.setData({ event, contactPhone: profile.phone || '' })
+      this.setData({ event })
     } catch (error) {
       leaveApplyPage(id)
     }
@@ -54,16 +52,14 @@ Page({
   onSkiTypeChange(event) { this.setData({ skiTypeIndex: Number(event.detail.value) }) },
   onInput(event) { this.setData({ [event.currentTarget.dataset.key]: event.detail.value }) },
   onSwitch(event) { this.setData({ [event.currentTarget.dataset.key]: event.detail.value }) },
-  toggleSavePhone(event) { this.setData({ savePhoneToProfile: event.detail.checked }) },
 
   async submitApply() {
+	if (this.data.submitting) return
     if (isOwnEvent(this.data.event, {})) {
       wx.showToast({ title: '不能申请自己发布的行程', icon: 'none' })
       return
     }
     if (!this.data.departArea.trim()) { wx.showToast({ title: '请填写出发区域', icon: 'none' }); return }
-    if (!this.data.contactPhone.trim()) { wx.showToast({ title: '请填写联系手机号', icon: 'none' }); return }
-    if (!isValidPhone(this.data.contactPhone)) { wx.showToast({ title: '请输入正确的手机号', icon: 'none' }); return }
     if (!this.data.message.trim()) { wx.showToast({ title: '请填写申请说明', icon: 'none' }); return }
     const payload = {
       skiLevel: ['beginner', 'primary', 'intermediate', 'advanced'][this.data.levelIndex],
@@ -71,19 +67,16 @@ Page({
       hasCar: this.data.hasCar,
       canCarryPeople: this.data.canCarryPeople,
       departArea: this.data.departArea,
-      message: `${this.data.message}\n联系手机号：${maskPhone(this.data.contactPhone)}`
+      message: this.data.message.trim()
     }
+	this.setData({ submitting: true })
     try {
       await api.applyEvent(this.data.event.id, payload)
-      if (this.data.savePhoneToProfile) {
-        try {
-          const profile = await api.me()
-          await api.updateMe({ ...profile, phone: this.data.contactPhone.trim(), genderVisible: true })
-        } catch (error) {}
-      }
       wx.showToast({ title: '申请已提交', icon: 'success' })
     } catch (error) {
       return
+	} finally {
+	  this.setData({ submitting: false })
     }
     setTimeout(() => wx.switchTab({ url: '/pages/trips/index/index' }), 600)
   }

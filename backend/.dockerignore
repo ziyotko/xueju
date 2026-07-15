@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+uploads/
+tmp/
+bin/
+*.log
+coverage.out

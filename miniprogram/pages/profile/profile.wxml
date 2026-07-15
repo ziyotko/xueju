@@ -1,9 +1,9 @@
 <view class="profile-page safe-bottom">
   <view class="profile-hero">
     <view class="profile-actions">
-      <view bindtap="goFavorites"><app-icon name="star" size="22" color="#FFFFFF" /></view>
-      <view bindtap="goNotifications"><app-icon name="notification" size="22" color="#FFFFFF" /></view>
-      <view bindtap="goSettings"><app-icon name="setting" size="22" color="#FFFFFF" /></view>
+      <view class="profile-action" bindtap="goFavorites"><app-icon name="star" size="22" color="#FFFFFF" /></view>
+      <view class="profile-action" bindtap="goNotifications"><app-icon name="notification" size="22" color="#FFFFFF" /></view>
+      <view class="profile-action" bindtap="goSettings"><app-icon name="setting" size="22" color="#FFFFFF" /></view>
     </view>
     <image class="profile-cover" mode="aspectFill" src="{{profileCover}}" />
     <view class="profile-mask"></view>
@@ -23,10 +23,6 @@
     </view>
     <view class="id-line">{{city || '未填写城市'}} · 滑雪</view>
     <view class="bio">{{bio}}</view>
-    <view class="phone-status">
-      <view class="phone-main">手机号：{{phoneText}}</view>
-      <view class="phone-hint">{{phoneHint}}</view>
-    </view>
     <view class="tag-row">
       <text class="tag">{{level}}</text>
       <text wx:if="{{skiTypeText}}" class="tag">{{skiTypeText}}</text>

@@ -2,6 +2,7 @@ package router
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"xueju/backend/internal/config"
@@ -13,9 +14,8 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
-	r.Use(gin.Logger(), middleware.Recovery())
+	r.Use(middleware.RequestLogger(), middleware.Recovery(), middleware.BodyLimit(6*1024*1024))
 	r.NoRoute(middleware.NoRoute)
-	r.Static("/uploads", "./uploads")
 
 	api := r.Group("/api")
 	healthHandler := handler.NewHealthHandler(cfg, db)
@@ -23,9 +23,11 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 
 	adminHandler := handler.NewAdminHandler(cfg, db)
 	appHandler := handler.NewAppHandler(cfg, db)
+	r.GET("/uploads/:folder/:name", appHandler.ServeUpload)
 
 	api.POST("/auth/wechat-login", appHandler.WechatLogin)
-	api.POST("/admin/auth/login", adminHandler.Login)
+	api.POST("/callbacks/wechat/media", appHandler.MediaReviewCallback)
+	api.POST("/admin/auth/login", middleware.RateLimit(10, 5*time.Minute), adminHandler.Login)
 	api.GET("/events", appHandler.Events)
 	api.GET("/events/:id", appHandler.EventDetail)
 	api.GET("/dict/resorts", appHandler.Resorts)
@@ -35,11 +37,13 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	api.GET("/users/:id/reviews", appHandler.UserReviews)
 
 	auth := api.Group("")
-	auth.Use(middleware.JWTAuth(cfg.JWTSecret))
+	auth.Use(middleware.JWTAuth(cfg.JWTSecret), middleware.ActiveUser(db))
 	auth.GET("/user/me", appHandler.Me)
 	auth.PUT("/user/me", appHandler.UpdateMe)
+	auth.DELETE("/user/me", appHandler.DeleteMe)
 	auth.POST("/uploads/avatar", appHandler.UploadAvatar)
 	auth.POST("/uploads/event-image", appHandler.UploadEventImage)
+	auth.GET("/uploads/:id/status", appHandler.UploadStatus)
 	auth.POST("/events", appHandler.CreateEvent)
 	auth.PUT("/events/:id", appHandler.UpdateEvent)
 	auth.DELETE("/events/:id", appHandler.DeleteEvent)
@@ -48,6 +52,7 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	auth.POST("/events/:id/apply", appHandler.ApplyEvent)
 	auth.GET("/join-requests/my", appHandler.MyJoinRequests)
 	auth.GET("/events/:id/applications", appHandler.EventApplications)
+	auth.DELETE("/events/:id/members/:userId", appHandler.RemoveEventMember)
 	auth.POST("/join-requests/:id/approve", appHandler.ReviewJoinRequest("approved"))
 	auth.POST("/join-requests/:id/reject", appHandler.ReviewJoinRequest("rejected"))
 	auth.GET("/trips/created", appHandler.Trips("created"))
@@ -66,6 +71,7 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	auth.DELETE("/events/:id/favorite", appHandler.SetFavorite(false))
 	auth.POST("/users/:id/follow", appHandler.SetFollow(true))
 	auth.DELETE("/users/:id/follow", appHandler.SetFollow(false))
+	auth.GET("/users/:id/follow-status", appHandler.FollowStatus)
 	auth.GET("/notifications", appHandler.Notifications)
 	auth.POST("/notifications/read", appHandler.MarkNotificationsRead)
 	auth.DELETE("/notifications", appHandler.ClearNotifications)
@@ -81,6 +87,8 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	admin.GET("/dicts", adminHandler.Dicts)
 	admin.GET("/messages", adminHandler.Messages)
 	admin.GET("/reviews", adminHandler.Reviews)
+	admin.GET("/uploads", adminHandler.Uploads)
+	admin.GET("/audit-logs", adminHandler.AuditLogs)
 	admin.POST("/:resource/:id/actions", adminHandler.Action)
 	admin.POST("/dicts", adminHandler.SaveDict)
 	admin.PUT("/dicts/:id", adminHandler.SaveDict)

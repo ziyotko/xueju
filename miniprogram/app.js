@@ -1,8 +1,9 @@
 const { login } = require('./utils/request')
+const { getApiBaseUrl } = require('./config/env')
 
 App({
   globalData: {
-    apiBaseUrl: "https://39.97.232.111/api",
+	apiBaseUrl: getApiBaseUrl(),
     token: "",
     user: null
   },
@@ -16,7 +17,19 @@ App({
   },
 
   loginSilently() {
-    login().catch((error) => {
+	login().then((data) => {
+	  const user = data.user || {}
+	  if (wx.getStorageSync('xueju_onboarding_prompted') || (user.nickname && user.nickname !== '雪友' && user.skiLevel)) return
+	  wx.setStorageSync('xueju_onboarding_prompted', true)
+	  setTimeout(() => {
+		wx.showModal({
+		  title: '完善滑雪资料',
+		  content: '填写昵称、城市和滑雪水平后，其他雪友能更准确地审核你的申请。',
+		  confirmText: '去完善',
+		  success: (result) => { if (result.confirm) wx.navigateTo({ url: '/pages/profile/edit/edit' }) }
+		})
+	  }, 800)
+	}).catch((error) => {
       console.warn('silent login failed, browse as guest', error)
     })
   }

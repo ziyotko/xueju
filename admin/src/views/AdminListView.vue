@@ -61,6 +61,7 @@
             <el-button link :type="primaryAction(row).danger ? 'danger' : 'primary'" @click="executeAction(row)">
               {{ primaryAction(row).text }}
             </el-button>
+			<el-button v-if="resource === 'uploads' && row.status === 'pending'" link type="danger" @click="rejectUpload(row)">拒绝</el-button>
           </template>
         </el-table-column>
         <template #empty>
@@ -80,8 +81,12 @@
       </div>
     </section>
 
-    <el-dialog v-model="detailVisible" title="记录详情" width="560px">
-      <pre class="detail-json">{{ selectedRow }}</pre>
+	<el-dialog v-model="detailVisible" title="记录详情" width="640px">
+	  <el-descriptions v-if="selectedRow" :column="1" border>
+		<el-descriptions-item v-for="(value, key) in selectedRow" :key="key" :label="String(key)">
+		  {{ typeof value === 'object' ? JSON.stringify(value, null, 2) : value }}
+		</el-descriptions-item>
+	  </el-descriptions>
     </el-dialog>
 
     <el-dialog v-model="dictVisible" :title="dictForm.id ? '编辑雪场' : '新增雪场'" width="520px">
@@ -146,6 +151,8 @@ const metaMap: Record<AdminResource, { kicker: string; description: string; tabl
   messages: { kicker: "群聊管理", description: "查看局内群聊消息，必要时隐藏不适宜内容。", tableTitle: "消息记录" },
   "content-reviews": { kicker: "内容安全", description: "复核昵称、备注、群聊、评价与举报内容。", tableTitle: "内容审核记录" },
   dicts: { kicker: "基础字典", description: "管理雪场、城市与标签等基础运营数据。", tableTitle: "字典记录" }
+	,uploads: { kicker: "图片安全", description: "审核头像和行程图片，只有通过后才能公开访问。", tableTitle: "待审媒体" }
+	,"audit-logs": { kicker: "操作留痕", description: "查看管理员对用户、内容和举报执行的关键操作。", tableTitle: "审计日志" }
 }
 
 const meta = computed(() => metaMap[props.resource])
@@ -196,7 +203,20 @@ function primaryAction(row: Row) {
       ? { text: "启用雪场", action: "enable_dict", status: "normal", danger: false }
       : { text: props.actionText, action: "disable_dict", status: "disabled", danger: true }
   }
+	if (props.resource === "uploads") {
+	  return row.status === "approved"
+		? { text: "已通过", action: "noop", danger: false }
+		: { text: "通过审核", action: "approve_upload", status: "approved", result: "人工审核通过", danger: false }
+	}
+	if (props.resource === "audit-logs") return { text: "查看记录", action: "noop", danger: false }
   return { text: "查看记录", action: "noop", danger: false }
+}
+
+async function rejectUpload(row: Row) {
+	const result = await ElMessageBox.prompt("请输入拒绝原因", "拒绝媒体", { inputPlaceholder: "例如：图片包含不适宜内容" })
+	await runAdminAction("uploads", row.id, { action: "reject_upload", status: "rejected", result: result.value })
+	ElMessage.success("已拒绝")
+	await loadData()
 }
 
 async function executeAction(row: Row) {
@@ -210,7 +230,12 @@ async function executeAction(row: Row) {
       inputValue: row.result || "运营已处理",
       inputPlaceholder: "例如：已核实并下架相关内容"
     })
-    await runAdminAction(props.resource, row.id, { ...action, result: result.value })
+	const linkedAction = await ElMessageBox.confirm("是否同时处置被举报对象？用户将被禁用，行程将下架，消息或评价将隐藏。", "联动处置", {
+	  confirmButtonText: "同时处置",
+	  cancelButtonText: "仅处理举报",
+	  type: "warning"
+	}).then(() => true).catch(() => false)
+	await runAdminAction(props.resource, row.id, { ...action, result: result.value, linkedAction })
     ElMessage.success("操作成功")
     await loadData()
     return

@@ -73,15 +73,6 @@
   font-size: 24rpx;
 }
 
-.save-phone-row {
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-  padding: 16rpx 0 4rpx;
-  color: #64748b;
-  font-size: 24rpx;
-}
-
 .message-box {
   width: 100%;
   min-height: 180rpx;

@@ -23,6 +23,12 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiBody<unknown>>) => {
+	if (error.response?.status === 401 && window.location.pathname !== "/login") {
+	  localStorage.removeItem("xueju_admin_token")
+	  localStorage.removeItem("xueju_admin_user")
+	  const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+	  window.location.assign(`/login?redirect=${redirect}`)
+	}
     const message = error.response?.data?.message || "网络连接失败"
     ElMessage.error(message)
     return Promise.reject(error)
@@ -78,13 +84,14 @@ export interface HealthInfo {
   timestamp: string
 }
 
-export type AdminResource = "users" | "events" | "applications" | "messages" | "reviews" | "reports" | "content-reviews" | "dicts"
+export type AdminResource = "users" | "events" | "applications" | "messages" | "reviews" | "reports" | "content-reviews" | "dicts" | "uploads" | "audit-logs"
 
 export interface AdminActionPayload {
   action: string
   status?: string
   reason?: string
   result?: string
+	linkedAction?: boolean
 }
 
 export interface DictPayload {

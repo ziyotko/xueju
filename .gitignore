@@ -2,11 +2,15 @@
 Thumbs.db
 
 .runtime/
+.gocache-codex/
+.build/
+backups/
 
 backend/.env
 backend/tmp/
 backend/bin/
 backend/uploads/
+backend/**/uploads/
 
 admin/.env
 admin/node_modules/

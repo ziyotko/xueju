@@ -1,6 +1,7 @@
 package response
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,11 @@ func Success(c *gin.Context, data interface{}) {
 }
 
 func Error(c *gin.Context, httpStatus int, code int, message string) {
+	if httpStatus >= http.StatusInternalServerError {
+		requestID, _ := c.Get("requestID")
+		log.Printf("internal request error: requestId=%v status=%d code=%d error=%q", requestID, httpStatus, code, message)
+		message = "服务暂时不可用，请稍后重试"
+	}
 	c.JSON(httpStatus, Body{
 		Code:    code,
 		Message: message,

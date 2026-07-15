@@ -6,7 +6,8 @@ Page({
     event: {},
     summaryText: '',
     requests: [],
-    statusText: { pending: '待审核', approved: '已通过', rejected: '已拒绝' }
+    removingId: 0,
+    statusText: { pending: '待审核', approved: '已通过', rejected: '已拒绝', removed: '已移出' }
   },
 
   async onLoad(options) {
@@ -47,6 +48,29 @@ Page({
       wx.showToast({ title: '已拒绝', icon: 'none' })
       this.loadRequests()
     } catch (error) {}
+  },
+
+  removeMember(event) {
+    const userId = Number(event.currentTarget.dataset.userId || 0)
+    if (!userId || this.data.removingId) return
+    wx.showModal({
+      title: '移出该成员？',
+      content: '移出后该成员会立即失去群聊权限，且不能再次申请该行程。',
+      confirmText: '确认移出',
+      confirmColor: '#EF4444',
+      success: async (result) => {
+        if (!result.confirm) return
+        this.setData({ removingId: userId })
+        try {
+          await api.removeEventMember(this.data.eventId, userId)
+          wx.showToast({ title: '成员已移出', icon: 'success' })
+          await this.loadRequests()
+        } catch (error) {
+        } finally {
+          this.setData({ removingId: 0 })
+        }
+      }
+    })
   },
 
   goChat() { wx.navigateTo({ url: `/pages/chat/room/room?eventId=${this.data.eventId}` }) },

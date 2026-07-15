@@ -48,19 +48,6 @@
   font-size: 22rpx;
 }
 
-.clear-btn {
-  height: 52rpx;
-  padding: 0 18rpx;
-  border-radius: 999rpx;
-  background: #eef2ff;
-  color: #4f46e5;
-  font-size: 22rpx;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
 .chat-scroll {
   flex: 1;
   min-height: 0;

@@ -76,14 +76,14 @@ func (s *Service) CheckText(ctx context.Context, req TextCheckRequest) error {
 	return result.toError()
 }
 
-func (s *Service) CheckMediaAsync(ctx context.Context, req MediaCheckRequest) error {
+func (s *Service) CheckMediaAsync(ctx context.Context, req MediaCheckRequest) (string, error) {
 	if req.MediaURL == "" || !s.enabled() {
-		return nil
+		return "", nil
 	}
 
 	accessToken, err := s.accessToken(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	payload := map[string]interface{}{
@@ -96,9 +96,12 @@ func (s *Service) CheckMediaAsync(ctx context.Context, req MediaCheckRequest) er
 
 	var result secCheckResponse
 	if err := s.postJSON(ctx, wechatMediaCheckURL, accessToken, payload, &result); err != nil {
-		return err
+		return "", err
 	}
-	return result.toError()
+	if err := result.toError(); err != nil {
+		return "", err
+	}
+	return result.TraceID, nil
 }
 
 func (s *Service) enabled() bool {
@@ -179,6 +182,7 @@ type tokenResponse struct {
 type secCheckResponse struct {
 	ErrCode int    `json:"errcode"`
 	ErrMsg  string `json:"errmsg"`
+	TraceID string `json:"trace_id"`
 	Result  struct {
 		Suggest string `json:"suggest"`
 		Label   int    `json:"label"`
