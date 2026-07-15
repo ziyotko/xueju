@@ -115,6 +115,9 @@ module.exports = {
   async updateMe(profile) {
     return http.put('/user/me', profile)
   },
+  async deleteMe() {
+    return http.delete('/user/me')
+  },
   async uploadAvatar(filePath) {
     return http.upload('/uploads/avatar', filePath, 'file')
   },
@@ -127,6 +130,9 @@ module.exports = {
   },
   async createEvent(form) {
     return mapEvent(await http.post('/events', eventPayload(form)))
+  },
+  async updateEvent(eventId, form) {
+    return mapEvent(await http.put(`/events/${eventId}`, eventPayload(form)))
   },
   async uploadEventImage(filePath) {
     return http.upload('/uploads/event-image', filePath, 'file')
@@ -152,6 +158,9 @@ module.exports = {
   async reviewApplication(id, approved, reason) {
     return http.post(`/join-requests/${id}/${approved ? 'approve' : 'reject'}`, { reason })
   },
+  async removeEventMember(eventId, userId) {
+    return http.delete(`/events/${eventId}/members/${userId}`)
+  },
   async trips(kind) {
     const list = await http.get(`/trips/${kind}`)
     return (list || []).map(mapEvent)
@@ -162,8 +171,8 @@ module.exports = {
   async markAllConversationsRead() {
     return http.post('/chat/conversations/read', {})
   },
-  async messages(eventId) {
-    return http.get(`/events/${eventId}/messages`)
+  async messages(eventId, params = {}) {
+    return http.get(`/events/${eventId}/messages`, params)
   },
   async sendMessage(eventId, content, messageType = 'text') {
     return http.post(`/events/${eventId}/messages`, { messageType, content })
@@ -193,6 +202,22 @@ module.exports = {
   async followUser(userId, following = true) {
     return following ? http.post(`/users/${userId}/follow`, {}) : http.delete(`/users/${userId}/follow`)
   },
+  async followStatus(userId) {
+    return http.get(`/users/${userId}/follow-status`)
+  },
+  async uploadStatus(uploadId) {
+    return http.get(`/uploads/${uploadId}/status`)
+  },
+	async waitForUpload(upload, attempts = 6) {
+	  let current = upload || {}
+	  for (let index = 0; index < attempts; index += 1) {
+		if (current.status === 'approved' && current.url) return current
+		if (current.status === 'rejected') throw new Error(current.result || '图片未通过审核')
+		await new Promise((resolve) => setTimeout(resolve, 2000))
+		current = await http.get(`/uploads/${current.id}/status`)
+	  }
+	  return current
+	},
   async notifications() {
     return http.get('/notifications')
   },

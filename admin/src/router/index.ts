@@ -49,6 +49,24 @@ const router = createRouter({
       name: "dicts",
       component: AdminListView,
       props: { resource: "dicts", title: "字典管理", actionText: "停用雪场" }
+	},
+	{
+	  path: "/content-reviews",
+	  name: "content-reviews",
+	  component: AdminListView,
+	  props: { resource: "content-reviews", title: "内容审核", actionText: "隐藏内容" }
+	},
+	{
+	  path: "/uploads",
+	  name: "uploads",
+	  component: AdminListView,
+	  props: { resource: "uploads", title: "媒体审核", actionText: "通过审核" }
+	},
+	{
+	  path: "/audit-logs",
+	  name: "audit-logs",
+	  component: AdminListView,
+	  props: { resource: "audit-logs", title: "操作审计", actionText: "查看记录" }
     }
   ]
 })

@@ -73,6 +73,11 @@ function buildHeader(options = {}) {
 
 function request(options) {
   const app = getApp()
+	if (!app.globalData.apiBaseUrl) {
+	  const error = new Error("当前版本未配置 HTTPS 服务地址")
+	  wx.showToast({ title: error.message, icon: "none" })
+	  return Promise.reject(error)
+	}
   return ensureLogin(options).then(() => new Promise((resolve, reject) => {
     wx.request({
       url: `${app.globalData.apiBaseUrl}${options.url}`,

@@ -30,6 +30,8 @@ Page({
     eventId: 1,
     event: {},
     messages: [],
+	nextBeforeId: 0,
+	loadingOlder: false,
     inputValue: '',
     toView: '',
     actionPanelVisible: false,
@@ -71,21 +73,38 @@ Page({
     this.markRead()
   },
 
-  async loadMessages() {
+	async loadMessages(options = {}) {
     if (this.loadingMessages) return
     this.loadingMessages = true
     try {
-      const messages = await api.messages(this.data.eventId)
-      this.setData({ messages: messages.map(mapMessage) }, () => {
-        this.scrollToBottom()
+	  const params = { limit: 50 }
+	  if (options.incremental && this.data.messages.length) params.afterId = this.data.messages[this.data.messages.length - 1].id
+	  if (options.older && this.data.nextBeforeId) params.beforeId = this.data.nextBeforeId
+	  const page = await api.messages(this.data.eventId, params)
+	  const incoming = (page.list || page || []).map(mapMessage)
+	  let messages = incoming
+	  if (options.incremental) {
+		const known = new Set(this.data.messages.map((item) => Number(item.id)))
+		messages = this.data.messages.concat(incoming.filter((item) => !known.has(Number(item.id))))
+	  } else if (options.older) {
+		messages = incoming.concat(this.data.messages)
+	  }
+	  this.setData({ messages, nextBeforeId: options.incremental ? this.data.nextBeforeId : Number(page.nextBeforeId || 0) }, () => {
+		if (!options.older) this.scrollToBottom()
         this.markRead()
       })
     } catch (error) {
-      this.setData({ messages: [] }, () => this.scrollToBottom())
+	  if (!options.incremental && !options.older) this.setData({ messages: [] }, () => this.scrollToBottom())
     } finally {
       this.loadingMessages = false
+	  if (options.older) this.setData({ loadingOlder: false })
     }
   },
+
+	loadOlder() {
+	  if (!this.data.nextBeforeId || this.data.loadingOlder) return
+	  this.setData({ loadingOlder: true }, () => this.loadMessages({ older: true }))
+	},
 
   onInput(event) { this.setData({ inputValue: event.detail.value }) },
   onConfirm() { this.send() },
@@ -117,9 +136,19 @@ Page({
     this.setData({ inputValue: action.message }, () => this.send())
   },
 
+	reportMessage(event) {
+	  const id = Number(event.currentTarget.dataset.id || 0)
+	  const message = this.data.messages.find((item) => Number(item.id) === id)
+	  if (!message || message.side === 'right' || message.system) return
+	  wx.showActionSheet({
+		itemList: ['举报该消息'],
+		success: () => wx.navigateTo({ url: `/pages/report/report?targetType=message&targetId=${id}` })
+	  })
+	},
+
   startPolling() {
     if (this.pollTimer) return
-    this.pollTimer = setInterval(() => this.loadMessages(), 5000)
+	this.pollTimer = setInterval(() => this.loadMessages({ incremental: true }), 5000)
   },
 
   stopPolling() {
@@ -136,10 +165,6 @@ Page({
   buildMessage(content, side = 'right') {
     const name = side === 'right' ? '我' : '雪友'
     return { id: Date.now(), name, initial: name.slice(0, 1), displayName: name, side, content, time: nowText() }
-  },
-
-  clearMessages() {
-    wx.showToast({ title: '聊天记录由后端保存', icon: 'none' })
   },
 
   scrollToBottom() {

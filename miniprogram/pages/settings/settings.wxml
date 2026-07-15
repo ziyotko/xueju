@@ -7,6 +7,6 @@
   <view class="setting-card card">
     <view class="setting-row" bindtap="goReport"><text>举报与反馈</text><app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
     <view class="setting-row" bindtap="showPrivacy"><text>隐私保护指引</text><app-icon name="chevron-right" size="18" color="#94A3B8" /></view>
-    <view class="setting-row danger" bindtap="deleteAccount"><text>注销账号</text><app-icon name="chevron-right" size="18" color="#EF4444" /></view>
+    <view class="setting-row danger" bindtap="deleteAccount"><text>{{deleting ? '正在注销...' : '注销账号'}}</text><app-icon name="chevron-right" size="18" color="#EF4444" /></view>
   </view>
 </view>

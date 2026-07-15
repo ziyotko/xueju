@@ -16,4 +16,3 @@ func Recovery() gin.HandlerFunc {
 func NoRoute(c *gin.Context) {
 	response.Error(c, http.StatusNotFound, response.CodeNotFound, "route not found")
 }
-

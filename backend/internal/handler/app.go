@@ -2,12 +2,17 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,6 +25,7 @@ import (
 	"xueju/backend/internal/contentsecurity"
 	"xueju/backend/internal/middleware"
 	"xueju/backend/internal/response"
+	"xueju/backend/internal/storage"
 	"xueju/backend/internal/textfilter"
 )
 
@@ -29,6 +35,7 @@ type AppHandler struct {
 	security   *contentsecurity.Service
 	textFilter *textfilter.Filter
 	client     *http.Client
+	storage    storage.Store
 }
 
 func NewAppHandler(cfg config.Config, db *sql.DB) *AppHandler {
@@ -38,6 +45,7 @@ func NewAppHandler(cfg config.Config, db *sql.DB) *AppHandler {
 		db:         db,
 		security:   contentsecurity.New(cfg),
 		textFilter: filter,
+		storage:    storage.New(cfg),
 		client:     &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -88,6 +96,7 @@ func (h *AppHandler) WechatLogin(c *gin.Context) {
 		return
 	}
 
+	delete(user, "openid")
 	response.Success(c, gin.H{"token": token, "user": user})
 }
 
@@ -100,11 +109,15 @@ func (h *AppHandler) Me(c *gin.Context) {
 		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
 		return
 	}
+	if !h.ensureActive(c, userID) {
+		return
+	}
 	user, err := h.userByID(userID)
 	if err != nil {
 		h.sqlError(c, err)
 		return
 	}
+	delete(user, "openid")
 	response.Success(c, user)
 }
 
@@ -117,8 +130,11 @@ func (h *AppHandler) PublicUser(c *gin.Context) {
 		h.sqlError(c, err)
 		return
 	}
+	if user["status"] == "disabled" {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "user not found")
+		return
+	}
 	delete(user, "openid")
-	delete(user, "phone")
 	if visible, ok := user["genderVisible"].(bool); !visible || !ok {
 		user["gender"] = 0
 	}
@@ -134,52 +150,189 @@ func (h *AppHandler) UpdateMe(c *gin.Context) {
 		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
 		return
 	}
+	if !h.ensureActive(c, userID) {
+		return
+	}
 
 	var req struct {
-		Nickname        string   `json:"nickname"`
-		AvatarURL       string   `json:"avatarUrl"`
-		Gender          int      `json:"gender"`
-		GenderVisible   bool     `json:"genderVisible"`
-		Phone           string   `json:"phone"`
-		City            string   `json:"city"`
-		SkiType         string   `json:"skiType"`
-		SkiLevel        string   `json:"skiLevel"`
-		StyleTags       []string `json:"styleTags"`
-		FavoriteResorts []string `json:"favoriteResorts"`
-		HasCar          bool     `json:"hasCar"`
+		Nickname        *string   `json:"nickname"`
+		AvatarURL       *string   `json:"avatarUrl"`
+		Bio             *string   `json:"bio"`
+		Gender          *int      `json:"gender"`
+		GenderVisible   *bool     `json:"genderVisible"`
+		City            *string   `json:"city"`
+		SkiType         *string   `json:"skiType"`
+		SkiLevel        *string   `json:"skiLevel"`
+		StyleTags       *[]string `json:"styleTags"`
+		FavoriteResorts *[]string `json:"favoriteResorts"`
+		HasCar          *bool     `json:"hasCar"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid profile")
 		return
 	}
-	req.Nickname = h.cleanText(req.Nickname)
-	req.City = h.cleanText(req.City)
-	req.SkiType = h.cleanText(req.SkiType)
-	req.SkiLevel = h.cleanText(req.SkiLevel)
-	req.StyleTags = h.cleanTexts(req.StyleTags)
-	req.FavoriteResorts = h.cleanTexts(req.FavoriteResorts)
-	if err := h.checkText(c.Request.Context(), userID, compliance.FieldUserNickname, req.Nickname); err != nil {
-		h.contentError(c, err)
+	if h.rejectLocalRisk(c, pointerString(req.Nickname), pointerString(req.Bio), pointerString(req.City), strings.Join(pointerSlice(req.StyleTags), " ")) {
 		return
 	}
-	styleTags, _ := json.Marshal(req.StyleTags)
-	favoriteResorts, _ := json.Marshal(req.FavoriteResorts)
-	_, err := h.db.Exec(`UPDATE users SET nickname=?, avatar_url=?, gender=?, gender_visible=?, phone=?, city=?, ski_type=?, ski_level=?, style_tags=?, favorite_resorts=?, has_car=? WHERE id=?`,
-		defaultString(req.Nickname, "雪友"), req.AvatarURL, req.Gender, boolInt(req.GenderVisible), req.Phone, req.City, req.SkiType, req.SkiLevel, string(styleTags), string(favoriteResorts), boolInt(req.HasCar), userID)
+	updates := []string{}
+	args := []interface{}{}
+	add := func(column string, value interface{}) {
+		updates = append(updates, column+"=?")
+		args = append(args, value)
+	}
+	if req.Nickname != nil {
+		value := h.cleanText(*req.Nickname)
+		if err := h.checkText(c.Request.Context(), userID, compliance.FieldUserNickname, value); err != nil {
+			h.contentError(c, err)
+			return
+		}
+		add("nickname", defaultString(value, "雪友"))
+	}
+	if req.Bio != nil {
+		value := h.cleanText(*req.Bio)
+		if err := h.checkText(c.Request.Context(), userID, compliance.FieldUserBio, value); err != nil {
+			h.contentError(c, err)
+			return
+		}
+		add("bio", value)
+	}
+	if req.AvatarURL != nil {
+		value := strings.TrimSpace(*req.AvatarURL)
+		if value != "" && !h.isApprovedAvatar(userID, value) {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "avatar is not an approved upload")
+			return
+		}
+		add("avatar_url", value)
+	}
+	if req.Gender != nil {
+		add("gender", *req.Gender)
+	}
+	if req.GenderVisible != nil {
+		add("gender_visible", boolInt(*req.GenderVisible))
+	}
+	if req.City != nil {
+		value := h.cleanText(*req.City)
+		if err := h.checkText(c.Request.Context(), userID, compliance.FieldUserBio, value); err != nil {
+			h.contentError(c, err)
+			return
+		}
+		add("city", value)
+	}
+	if req.SkiType != nil {
+		add("ski_type", h.cleanText(*req.SkiType))
+	}
+	if req.SkiLevel != nil {
+		add("ski_level", h.cleanText(*req.SkiLevel))
+	}
+	if req.StyleTags != nil {
+		cleaned := h.cleanTexts(*req.StyleTags)
+		if err := h.checkText(c.Request.Context(), userID, compliance.FieldUserBio, strings.Join(cleaned, " ")); err != nil {
+			h.contentError(c, err)
+			return
+		}
+		value, _ := json.Marshal(cleaned)
+		add("style_tags", string(value))
+	}
+	if req.FavoriteResorts != nil {
+		value, _ := json.Marshal(h.cleanTexts(*req.FavoriteResorts))
+		add("favorite_resorts", string(value))
+	}
+	if req.HasCar != nil {
+		add("has_car", boolInt(*req.HasCar))
+	}
+	if len(updates) == 0 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "no profile fields to update")
+		return
+	}
+	args = append(args, userID)
+	_, err := h.db.Exec(`UPDATE users SET `+strings.Join(updates, ", ")+` WHERE id=?`, args...)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
 	}
 	user, _ := h.userByID(userID)
+	delete(user, "openid")
 	response.Success(c, user)
+}
+
+func (h *AppHandler) DeleteMe(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok || !h.ensureActive(c, userID) {
+		return
+	}
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+	var currentStatus string
+	if err := tx.QueryRow(`SELECT status FROM users WHERE id=? AND deleted_at IS NULL FOR UPDATE`, userID).Scan(&currentStatus); err != nil {
+		h.sqlError(c, err)
+		return
+	}
+	mediaPaths := []string{}
+	rows, err := tx.Query(`SELECT path FROM media_uploads WHERE user_id=?`, userID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	for rows.Next() {
+		var path string
+		if rows.Scan(&path) == nil && path != "" {
+			mediaPaths = append(mediaPaths, path)
+		}
+	}
+	rows.Close()
+	statements := []struct {
+		query string
+		args  []interface{}
+	}{
+		{`UPDATE ski_events e JOIN event_members m ON m.event_id=e.id
+			SET e.current_members=GREATEST(1,e.current_members-1), e.status=IF(e.status='full','recruiting',e.status)
+			WHERE m.user_id=? AND m.role='member' AND m.status='active' AND e.status IN ('recruiting','full')`, []interface{}{userID}},
+		{`UPDATE ski_events SET status='cancelled' WHERE creator_id=? AND status IN ('recruiting','full')`, []interface{}{userID}},
+		{`UPDATE join_requests SET status='rejected', reject_reason='账号已注销' WHERE status='pending' AND (applicant_id=? OR creator_id=?)`, []interface{}{userID, userID}},
+		{`UPDATE event_members SET status='inactive' WHERE user_id=? AND status='active'`, []interface{}{userID}},
+		{`DELETE FROM event_favorites WHERE user_id=?`, []interface{}{userID}},
+		{`DELETE FROM user_follows WHERE follower_id=? OR followee_id=?`, []interface{}{userID, userID}},
+		{`DELETE FROM chat_reads WHERE user_id=?`, []interface{}{userID}},
+		{`DELETE FROM notifications WHERE user_id=?`, []interface{}{userID}},
+		{`UPDATE media_uploads SET status='rejected', review_result='account_deleted' WHERE user_id=?`, []interface{}{userID}},
+	}
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement.query, statement.args...); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+	}
+	deletedOpenID := fmt.Sprintf("deleted:%d:%d", userID, time.Now().UnixNano())
+	if _, err := tx.Exec(`UPDATE users SET openid=?, unionid=NULL, nickname='已注销用户', avatar_url='', bio='', phone=NULL,
+		gender=0, gender_visible=0, city='', ski_type='', ski_level='', style_tags=JSON_ARRAY(), favorite_resorts=JSON_ARRAY(),
+		has_car=0, status='disabled', deleted_at=NOW() WHERE id=?`, deletedOpenID, userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	for _, path := range mediaPaths {
+		_ = h.storage.Delete(c.Request.Context(), path)
+	}
+	response.Success(c, gin.H{"deleted": true})
 }
 
 func (h *AppHandler) Events(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
 	}
+	h.reconcileExpiredEvents()
 	page, pageSize := pagination(c)
-	where := []string{"e.deleted_at IS NULL", "e.status <> 'removed'"}
+	where := []string{"e.deleted_at IS NULL", "e.status IN ('recruiting','full')", "(e.event_date>CURDATE() OR (e.event_date=CURDATE() AND (e.start_time IS NULL OR e.start_time>=NOW())))"}
 	args := []interface{}{}
 
 	filters := map[string]string{
@@ -253,6 +406,7 @@ func (h *AppHandler) EventDetail(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
 	}
+	h.reconcileExpiredEvents()
 	id := c.Param("id")
 	event, err := h.eventByID(id)
 	if err != nil {
@@ -278,7 +432,14 @@ func (h *AppHandler) CreateEvent(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid event")
 		return
 	}
+	if h.rejectLocalRisk(c, req.Title, req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, req.Remark, strings.Join(req.PurposeTags, " ")) {
+		return
+	}
 	h.cleanEventRequest(&req)
+	if message := validateEventRequest(req, 1); message != "" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, message)
+		return
+	}
 	if req.Title == "" {
 		req.Title = req.ResortName
 	}
@@ -287,6 +448,10 @@ func (h *AppHandler) CreateEvent(c *gin.Context) {
 		return
 	}
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, req.Remark); err != nil {
+		h.contentError(c, err)
+		return
+	}
+	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, strings.Join([]string{req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, strings.Join(req.PurposeTags, " ")}, " ")); err != nil {
 		h.contentError(c, err)
 		return
 	}
@@ -299,10 +464,18 @@ func (h *AppHandler) CreateEvent(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "resort is required")
 		return
 	}
+	if req.ImageURL != "" && !h.isAllowedEventImage(userID, req.ImageURL) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event image is not approved")
+		return
+	}
+	status := "recruiting"
+	if req.MaxMembers == 1 {
+		status = "full"
+	}
 	result, err := h.db.Exec(`INSERT INTO ski_events
 		(title, creator_id, resort_id, resort_name, event_date, start_time, depart_city, depart_area, meet_place, traffic_type, max_members, current_members, ski_type_req, level_req, purpose_tags, allow_beginner, same_gender_only, allow_car_pool, allow_room_share, allow_photo, cost_desc, remark, image_url, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'recruiting')`,
-		req.Title, userID, req.ResortID, resortName, nullString(req.EventDate), nullString(req.StartTime), req.DepartCity, req.DepartArea, req.MeetPlace, req.TrafficType, maxInt(req.MaxMembers, 1), req.SkiTypeReq, req.LevelReq, string(tags), boolInt(req.AllowBeginner), boolInt(req.SameGenderOnly), boolInt(req.AllowCarPool), boolInt(req.AllowRoomShare), boolInt(req.AllowPhoto), req.CostDesc, req.Remark, req.ImageURL)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.Title, userID, req.ResortID, resortName, nullString(req.EventDate), nullString(req.StartTime), req.DepartCity, req.DepartArea, req.MeetPlace, req.TrafficType, req.MaxMembers, req.SkiTypeReq, req.LevelReq, string(tags), boolInt(req.AllowBeginner), boolInt(req.SameGenderOnly), boolInt(req.AllowCarPool), boolInt(req.AllowRoomShare), boolInt(req.AllowPhoto), req.CostDesc, req.Remark, req.ImageURL, status)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -341,33 +514,143 @@ func (h *AppHandler) uploadImage(c *gin.Context, userID int64, folder string) {
 		return
 	}
 	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp" {
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported image type")
 		return
 	}
-
-	dir := filepath.Join("uploads", folder)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+	source, err := file.Open()
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot read image")
 		return
 	}
+	defer source.Close()
+	buffer := make([]byte, 512)
+	n, _ := source.Read(buffer)
+	mimeType := http.DetectContentType(buffer[:n])
+	validMime := (ext == ".png" && mimeType == "image/png") || ((ext == ".jpg" || ext == ".jpeg") && mimeType == "image/jpeg")
+	if !validMime {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "image extension and content do not match")
+		return
+	}
+	if _, err := source.Seek(0, 0); err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot inspect image")
+		return
+	}
+	imageConfig, _, err := image.DecodeConfig(source)
+	if err != nil || imageConfig.Width < 1 || imageConfig.Height < 1 || imageConfig.Width > 12000 || imageConfig.Height > 12000 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid image content")
+		return
+	}
+
 	filename := fmt.Sprintf("%d-%d%s", userID, time.Now().UnixNano(), ext)
-	if err := c.SaveUploadedFile(file, filepath.Join(dir, filename)); err != nil {
+	if _, err := source.Seek(0, 0); err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot read image")
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(source, 5*1024*1024+1))
+	if err != nil || len(data) > 5*1024*1024 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot read image")
+		return
+	}
+	storageKey := filepath.ToSlash(filepath.Join(folder, filename))
+	if err := h.storage.Put(c.Request.Context(), storageKey, data, mimeType); err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
 	}
 
 	path := "/uploads/" + folder + "/" + filename
-	scheme := "http"
-	if forwarded := c.GetHeader("X-Forwarded-Proto"); forwarded != "" {
-		scheme = forwarded
-	} else if c.Request.TLS != nil {
-		scheme = "https"
+	publicURL := h.cfg.PublicBaseURL + path
+	if h.cfg.PublicBaseURL == "" {
+		scheme := "http"
+		if c.Request.TLS != nil {
+			scheme = "https"
+		}
+		publicURL = fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, path)
 	}
-	response.Success(c, gin.H{"url": fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, path), "path": path})
+	status := "approved"
+	reviewToken := ""
+	if h.cfg.ContentSecurity {
+		status = "pending"
+		random := make([]byte, 24)
+		if _, err := rand.Read(random); err != nil {
+			_ = h.storage.Delete(c.Request.Context(), storageKey)
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, "cannot create media review token")
+			return
+		}
+		reviewToken = hex.EncodeToString(random)
+	}
+	result, err := h.db.Exec(`INSERT INTO media_uploads (user_id, kind, path, public_url, review_token, mime_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)`, userID, folder, storageKey, publicURL, reviewToken, mimeType, status)
+	if err != nil {
+		_ = h.storage.Delete(c.Request.Context(), storageKey)
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	uploadID, _ := result.LastInsertId()
+	if h.cfg.ContentSecurity {
+		var openid string
+		_ = h.db.QueryRow(`SELECT openid FROM users WHERE id=?`, userID).Scan(&openid)
+		reviewURL := publicURL + "?reviewToken=" + reviewToken
+		traceID, checkErr := h.security.CheckMediaAsync(c.Request.Context(), contentsecurity.MediaCheckRequest{OpenID: openid, Scene: 2, MediaURL: reviewURL, MediaType: 2})
+		if checkErr != nil {
+			_, _ = h.db.Exec(`DELETE FROM media_uploads WHERE id=?`, uploadID)
+			_ = h.storage.Delete(c.Request.Context(), storageKey)
+			h.contentError(c, checkErr)
+			return
+		}
+		_, _ = h.db.Exec(`UPDATE media_uploads SET trace_id=? WHERE id=?`, traceID, uploadID)
+	}
+	responseData := gin.H{"id": uploadID, "status": status}
+	if status == "approved" {
+		responseData["url"] = publicURL
+	}
+	response.Success(c, responseData)
 }
 
-func (h *AppHandler) UpdateEvent(c *gin.Context) {
+func (h *AppHandler) MediaReviewCallback(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	provided := c.GetHeader("X-Callback-Token")
+	if provided == "" {
+		provided = c.Query("token")
+	}
+	if h.cfg.MediaCallbackToken == "" || provided != h.cfg.MediaCallbackToken {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid callback token")
+		return
+	}
+	var payload struct {
+		TraceID string `json:"trace_id"`
+		Suggest string `json:"suggest"`
+		Result  struct {
+			Suggest string `json:"suggest"`
+			Label   int    `json:"label"`
+		} `json:"result"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil || payload.TraceID == "" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid media callback")
+		return
+	}
+	suggest := payload.Result.Suggest
+	if suggest == "" {
+		suggest = payload.Suggest
+	}
+	status := "rejected"
+	if suggest == "pass" {
+		status = "approved"
+	}
+	result, err := h.db.Exec(`UPDATE media_uploads SET status=?, review_result=? WHERE trace_id=? AND status='pending'`, status, suggest, payload.TraceID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "pending media not found")
+		return
+	}
+	response.Success(c, gin.H{"status": status})
+}
+
+func (h *AppHandler) UploadStatus(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
 	}
@@ -375,8 +658,52 @@ func (h *AppHandler) UpdateEvent(c *gin.Context) {
 	if !ok || !h.ensureActive(c, userID) {
 		return
 	}
+	var status, publicURL, result string
+	if err := h.db.QueryRow(`SELECT status, public_url, review_result FROM media_uploads WHERE id=? AND user_id=?`, c.Param("id"), userID).Scan(&status, &publicURL, &result); err != nil {
+		h.sqlError(c, err)
+		return
+	}
+	data := gin.H{"id": mustInt64(c.Param("id")), "status": status, "result": result}
+	if status == "approved" {
+		data["url"] = publicURL
+	}
+	response.Success(c, data)
+}
+
+func (h *AppHandler) ServeUpload(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	relative := filepath.ToSlash(filepath.Join(c.Param("folder"), c.Param("name")))
+	var storedPath string
+	if err := h.db.QueryRow(`SELECT path FROM media_uploads WHERE path=? AND (status='approved' OR (status='pending' AND review_token<>'' AND review_token=?))`, relative, c.Query("reviewToken")).Scan(&storedPath); err != nil {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "image not found")
+		return
+	}
+	data, mimeType, err := h.storage.Get(c.Request.Context(), storedPath)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "image not found")
+		return
+	}
+	if mimeType == "" {
+		mimeType = http.DetectContentType(data)
+	}
+	c.Data(http.StatusOK, mimeType, data)
+}
+
+func (h *AppHandler) UpdateEvent(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	h.reconcileExpiredEvents()
+	userID, ok := currentUserID(c)
+	if !ok || !h.ensureActive(c, userID) {
+		return
+	}
 	var creatorID int64
-	if err := h.db.QueryRow(`SELECT creator_id FROM ski_events WHERE id=? AND deleted_at IS NULL`, c.Param("id")).Scan(&creatorID); err != nil {
+	var currentMembers int
+	var status string
+	if err := h.db.QueryRow(`SELECT creator_id, current_members, status FROM ski_events WHERE id=? AND deleted_at IS NULL`, c.Param("id")).Scan(&creatorID, &currentMembers, &status); err != nil {
 		h.sqlError(c, err)
 		return
 	}
@@ -384,12 +711,31 @@ func (h *AppHandler) UpdateEvent(c *gin.Context) {
 		response.Error(c, http.StatusForbidden, response.CodeUnauthorized, "only creator can update event")
 		return
 	}
+	if status != "recruiting" && status != "full" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "only active events can be edited")
+		return
+	}
 	var req eventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid event")
 		return
 	}
+	if h.rejectLocalRisk(c, req.Title, req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, req.Remark, strings.Join(req.PurposeTags, " ")) {
+		return
+	}
 	h.cleanEventRequest(&req)
+	if message := validateEventRequest(req, currentMembers); message != "" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, message)
+		return
+	}
+	if req.MaxMembers < currentMembers {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "maxMembers cannot be smaller than currentMembers")
+		return
+	}
+	if req.ImageURL != "" && !h.isAllowedEventImage(userID, req.ImageURL) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event image is not approved")
+		return
+	}
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventTitle, req.Title); err != nil {
 		h.contentError(c, err)
 		return
@@ -398,9 +744,17 @@ func (h *AppHandler) UpdateEvent(c *gin.Context) {
 		h.contentError(c, err)
 		return
 	}
+	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, strings.Join([]string{req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, strings.Join(req.PurposeTags, " ")}, " ")); err != nil {
+		h.contentError(c, err)
+		return
+	}
 	tags, _ := json.Marshal(req.PurposeTags)
-	_, err := h.db.Exec(`UPDATE ski_events SET title=?, resort_id=?, resort_name=?, event_date=?, start_time=?, depart_city=?, depart_area=?, meet_place=?, traffic_type=?, max_members=?, ski_type_req=?, level_req=?, purpose_tags=?, allow_beginner=?, same_gender_only=?, allow_car_pool=?, allow_room_share=?, allow_photo=?, cost_desc=?, remark=?, image_url=? WHERE id=?`,
-		req.Title, req.ResortID, req.ResortName, nullString(req.EventDate), nullString(req.StartTime), req.DepartCity, req.DepartArea, req.MeetPlace, req.TrafficType, maxInt(req.MaxMembers, 1), req.SkiTypeReq, req.LevelReq, string(tags), boolInt(req.AllowBeginner), boolInt(req.SameGenderOnly), boolInt(req.AllowCarPool), boolInt(req.AllowRoomShare), boolInt(req.AllowPhoto), req.CostDesc, req.Remark, req.ImageURL, c.Param("id"))
+	nextStatus := "recruiting"
+	if req.MaxMembers == currentMembers {
+		nextStatus = "full"
+	}
+	_, err := h.db.Exec(`UPDATE ski_events SET title=?, resort_id=?, resort_name=?, event_date=?, start_time=?, depart_city=?, depart_area=?, meet_place=?, traffic_type=?, max_members=?, ski_type_req=?, level_req=?, purpose_tags=?, allow_beginner=?, same_gender_only=?, allow_car_pool=?, allow_room_share=?, allow_photo=?, cost_desc=?, remark=?, image_url=?, status=? WHERE id=?`,
+		req.Title, req.ResortID, req.ResortName, nullString(req.EventDate), nullString(req.StartTime), req.DepartCity, req.DepartArea, req.MeetPlace, req.TrafficType, req.MaxMembers, req.SkiTypeReq, req.LevelReq, string(tags), boolInt(req.AllowBeginner), boolInt(req.SameGenderOnly), boolInt(req.AllowCarPool), boolInt(req.AllowRoomShare), boolInt(req.AllowPhoto), req.CostDesc, req.Remark, req.ImageURL, nextStatus, c.Param("id"))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -410,44 +764,9 @@ func (h *AppHandler) UpdateEvent(c *gin.Context) {
 }
 
 func (h *AppHandler) DeleteEvent(c *gin.Context) {
-	if !h.requireDB(c) {
-		return
-	}
-	userID, ok := currentUserID(c)
-	if !ok || !h.ensureActive(c, userID) {
-		return
-	}
-
-	tx, err := h.db.Begin()
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
-		return
-	}
-	defer tx.Rollback()
-
-	result, err := tx.Exec(`UPDATE ski_events SET deleted_at=NOW(), status='cancelled' WHERE id=? AND creator_id=? AND deleted_at IS NULL`, c.Param("id"), userID)
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
-		return
-	}
-	if rows, _ := result.RowsAffected(); rows == 0 {
-		response.Error(c, http.StatusForbidden, response.CodeUnauthorized, "only creator can delete event")
-		return
-	}
-	if _, err := tx.Exec(`UPDATE event_members SET status='removed' WHERE event_id=?`, c.Param("id")); err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
-		return
-	}
-	if _, err := tx.Exec(`UPDATE users SET event_count=CASE WHEN event_count > 0 THEN event_count-1 ELSE 0 END WHERE id=?`, userID); err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
-		return
-	}
-	response.Success(c, gin.H{"deleted": true})
+	// Backwards-compatible DELETE: preserve the event and its audit trail by
+	// translating the old operation into a normal cancellation transition.
+	h.SetEventStatus("cancelled")(c)
 }
 
 func (h *AppHandler) SetEventStatus(status string) gin.HandlerFunc {
@@ -455,17 +774,41 @@ func (h *AppHandler) SetEventStatus(status string) gin.HandlerFunc {
 		if !h.requireDB(c) {
 			return
 		}
+		h.reconcileExpiredEvents()
 		userID, ok := currentUserID(c)
 		if !ok || !h.ensureActive(c, userID) {
 			return
 		}
-		result, err := h.db.Exec(`UPDATE ski_events SET status=? WHERE id=? AND creator_id=?`, status, c.Param("id"), userID)
+		if status != "cancelled" && status != "finished" {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported event status transition")
+			return
+		}
+		tx, err := h.db.Begin()
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 			return
 		}
-		if rows, _ := result.RowsAffected(); rows == 0 {
+		defer tx.Rollback()
+		var creatorID int64
+		var currentStatus string
+		if err := tx.QueryRow(`SELECT creator_id, status FROM ski_events WHERE id=? AND deleted_at IS NULL FOR UPDATE`, c.Param("id")).Scan(&creatorID, &currentStatus); err != nil {
+			h.sqlError(c, err)
+			return
+		}
+		if creatorID != userID {
 			response.Error(c, http.StatusForbidden, response.CodeUnauthorized, "only creator can update event")
+			return
+		}
+		if currentStatus != "recruiting" && currentStatus != "full" {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event is no longer active")
+			return
+		}
+		if _, err := tx.Exec(`UPDATE ski_events SET status=? WHERE id=?`, status, c.Param("id")); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 			return
 		}
 		response.Success(c, gin.H{"status": status})
@@ -476,6 +819,7 @@ func (h *AppHandler) ApplyEvent(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
 	}
+	h.reconcileExpiredEvents()
 	userID, ok := currentUserID(c)
 	if !ok || !h.ensureActive(c, userID) {
 		return
@@ -492,15 +836,30 @@ func (h *AppHandler) ApplyEvent(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "message is required")
 		return
 	}
+	if h.rejectLocalRisk(c, req.DepartArea, req.Message) {
+		return
+	}
 	req.DepartArea = h.cleanText(req.DepartArea)
 	req.Message = h.cleanText(req.Message)
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, req.Message); err != nil {
 		h.contentError(c, err)
 		return
 	}
+	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, req.DepartArea); err != nil {
+		h.contentError(c, err)
+		return
+	}
+	tx, err := h.db.Begin()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+
 	var creatorID int64
 	var status string
-	if err := h.db.QueryRow(`SELECT creator_id, status FROM ski_events WHERE id=? AND deleted_at IS NULL`, c.Param("id")).Scan(&creatorID, &status); err != nil {
+	var currentMembers, maxMembers int
+	if err := tx.QueryRow(`SELECT creator_id, status, current_members, max_members FROM ski_events WHERE id=? AND deleted_at IS NULL FOR UPDATE`, c.Param("id")).Scan(&creatorID, &status, &currentMembers, &maxMembers); err != nil {
 		h.sqlError(c, err)
 		return
 	}
@@ -508,17 +867,57 @@ func (h *AppHandler) ApplyEvent(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "creator cannot apply")
 		return
 	}
-	if status != "recruiting" {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event is not recruiting")
+	if status != "recruiting" || currentMembers >= maxMembers {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event is full or not recruiting")
 		return
 	}
-	result, err := h.db.Exec(`INSERT INTO join_requests (event_id, applicant_id, creator_id, ski_level, ski_type, has_car, can_carry_people, depart_area, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-		c.Param("id"), userID, creatorID, req.SkiLevel, req.SkiType, boolInt(req.HasCar), boolInt(req.CanCarryPeople), req.DepartArea, req.Message)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "application already exists or cannot be created")
+	var memberCount int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM event_members WHERE event_id=? AND user_id=? AND status='active'`, c.Param("id"), userID).Scan(&memberCount); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
 	}
-	id, _ := result.LastInsertId()
+	if memberCount > 0 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "user is already an event member")
+		return
+	}
+
+	var id int64
+	var oldStatus string
+	err = tx.QueryRow(`SELECT id, status FROM join_requests WHERE event_id=? AND applicant_id=? FOR UPDATE`, c.Param("id"), userID).Scan(&id, &oldStatus)
+	switch {
+	case err == nil && oldStatus == "rejected":
+		if _, err = tx.Exec(`UPDATE join_requests SET creator_id=?, ski_level=?, ski_type=?, has_car=?, can_carry_people=?, depart_area=?, message=?, status='pending', reject_reason='', updated_at=NOW() WHERE id=?`,
+			creatorID, req.SkiLevel, req.SkiType, boolInt(req.HasCar), boolInt(req.CanCarryPeople), req.DepartArea, req.Message, id); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+	case err == nil && oldStatus == "removed":
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "approved member cannot apply again")
+		return
+	case err == nil:
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "application is already pending or approved")
+		return
+	case errors.Is(err, sql.ErrNoRows):
+		result, insertErr := tx.Exec(`INSERT INTO join_requests (event_id, applicant_id, creator_id, ski_level, ski_type, has_car, can_carry_people, depart_area, message, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+			c.Param("id"), userID, creatorID, req.SkiLevel, req.SkiType, boolInt(req.HasCar), boolInt(req.CanCarryPeople), req.DepartArea, req.Message)
+		if insertErr != nil {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "application cannot be created")
+			return
+		}
+		id, _ = result.LastInsertId()
+		oldStatus = ""
+	default:
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`INSERT INTO join_request_history (join_request_id, event_id, applicant_id, from_status, to_status, operator_id) VALUES (?, ?, ?, ?, 'pending', ?)`, id, c.Param("id"), userID, oldStatus, userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
 	_ = h.addNotification(creatorID, "有新的加入申请", "有雪友申请加入你的滑雪局，请及时审核", "join_request", "event", mustInt64(c.Param("id")))
 	response.Success(c, gin.H{"id": id, "status": "pending"})
 }
@@ -589,10 +988,40 @@ func (h *AppHandler) ReviewJoinRequest(status string) gin.HandlerFunc {
 			Reason string `json:"reason"`
 		}
 		_ = c.ShouldBindJSON(&req)
+		if h.rejectLocalRisk(c, req.Reason) {
+			return
+		}
 		req.Reason = h.cleanText(req.Reason)
+		if status != "approved" && status != "rejected" {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid review status")
+			return
+		}
+		if req.Reason != "" {
+			if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, req.Reason); err != nil {
+				h.contentError(c, err)
+				return
+			}
+		}
+		var lockedEventID int64
+		if err := h.db.QueryRow(`SELECT event_id FROM join_requests WHERE id=?`, c.Param("id")).Scan(&lockedEventID); err != nil {
+			h.sqlError(c, err)
+			return
+		}
+		tx, err := h.db.Begin()
+		if err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		defer tx.Rollback()
+		var eventStatus string
+		var currentMembers, maxMembers int
+		if err := tx.QueryRow(`SELECT status, current_members, max_members FROM ski_events WHERE id=? FOR UPDATE`, lockedEventID).Scan(&eventStatus, &currentMembers, &maxMembers); err != nil {
+			h.sqlError(c, err)
+			return
+		}
 		var eventID, applicantID, creatorID int64
 		var currentStatus string
-		if err := h.db.QueryRow(`SELECT event_id, applicant_id, creator_id, status FROM join_requests WHERE id=?`, c.Param("id")).Scan(&eventID, &applicantID, &creatorID, &currentStatus); err != nil {
+		if err := tx.QueryRow(`SELECT event_id, applicant_id, creator_id, status FROM join_requests WHERE id=? FOR UPDATE`, c.Param("id")).Scan(&eventID, &applicantID, &creatorID, &currentStatus); err != nil {
 			h.sqlError(c, err)
 			return
 		}
@@ -604,26 +1033,41 @@ func (h *AppHandler) ReviewJoinRequest(status string) gin.HandlerFunc {
 			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "application is not pending")
 			return
 		}
-		tx, err := h.db.Begin()
-		if err != nil {
-			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
-			return
-		}
-		defer tx.Rollback()
-		if _, err = tx.Exec(`UPDATE join_requests SET status=?, reject_reason=? WHERE id=?`, status, req.Reason, c.Param("id")); err != nil {
-			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		if eventID != lockedEventID {
+			response.Error(c, http.StatusConflict, response.CodeBadRequest, "application event changed")
 			return
 		}
 		if status == "approved" {
-			if _, err = tx.Exec(`INSERT INTO event_members (event_id, user_id, role, status) VALUES (?, ?, 'member', 'active') ON DUPLICATE KEY UPDATE status='active'`, eventID, applicantID); err != nil {
+			if eventStatus != "recruiting" || currentMembers >= maxMembers {
+				response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event is full or no longer recruiting")
+				return
+			}
+			var memberCount int
+			if err := tx.QueryRow(`SELECT COUNT(*) FROM event_members WHERE event_id=? AND user_id=? AND status='active'`, eventID, applicantID).Scan(&memberCount); err != nil {
 				response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 				return
 			}
-			if _, err = tx.Exec(`UPDATE ski_events SET current_members=current_members+1, status=IF(current_members+1 >= max_members, 'full', status) WHERE id=?`, eventID); err != nil {
+			if memberCount > 0 {
+				response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "applicant is already a member")
+				return
+			}
+			if _, err = tx.Exec(`INSERT INTO event_members (event_id, user_id, role, status) VALUES (?, ?, 'member', 'active')`, eventID, applicantID); err != nil {
+				response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+				return
+			}
+			if _, err = tx.Exec(`UPDATE ski_events SET current_members=current_members+1, status=IF(current_members+1 >= max_members, 'full', 'recruiting') WHERE id=?`, eventID); err != nil {
 				response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 				return
 			}
 			_, _ = tx.Exec(`UPDATE users SET join_count=join_count+1 WHERE id=?`, applicantID)
+		}
+		if _, err = tx.Exec(`UPDATE join_requests SET status=?, reject_reason=?, updated_at=NOW() WHERE id=?`, status, req.Reason, c.Param("id")); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		if _, err = tx.Exec(`INSERT INTO join_request_history (join_request_id, event_id, applicant_id, from_status, to_status, operator_id, reason) VALUES (?, ?, ?, ?, ?, ?, ?)`, c.Param("id"), eventID, applicantID, currentStatus, status, userID, req.Reason); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
 		}
 		if err = tx.Commit(); err != nil {
 			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
@@ -640,11 +1084,96 @@ func (h *AppHandler) ReviewJoinRequest(status string) gin.HandlerFunc {
 	}
 }
 
+func (h *AppHandler) RemoveEventMember(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	h.reconcileExpiredEvents()
+	operatorID, ok := currentUserID(c)
+	if !ok || !h.ensureActive(c, operatorID) {
+		return
+	}
+	eventID := mustInt64(c.Param("id"))
+	targetID := mustInt64(c.Param("userId"))
+	if eventID <= 0 || targetID <= 0 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid event member")
+		return
+	}
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+	var creatorID int64
+	var eventStatus string
+	var currentMembers int
+	if err := tx.QueryRow(`SELECT creator_id, status, current_members FROM ski_events WHERE id=? AND deleted_at IS NULL FOR UPDATE`, eventID).Scan(&creatorID, &eventStatus, &currentMembers); err != nil {
+		h.sqlError(c, err)
+		return
+	}
+	if creatorID != operatorID {
+		response.Error(c, http.StatusForbidden, response.CodeUnauthorized, "only creator can remove members")
+		return
+	}
+	if targetID == creatorID {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "creator cannot be removed")
+		return
+	}
+	if eventStatus != "recruiting" && eventStatus != "full" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event no longer allows member changes")
+		return
+	}
+	var role, memberStatus string
+	if err := tx.QueryRow(`SELECT role, status FROM event_members WHERE event_id=? AND user_id=? FOR UPDATE`, eventID, targetID).Scan(&role, &memberStatus); err != nil {
+		h.sqlError(c, err)
+		return
+	}
+	if role != "member" || memberStatus != "active" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "member is not active")
+		return
+	}
+	if _, err := tx.Exec(`UPDATE event_members SET status='inactive' WHERE event_id=? AND user_id=?`, eventID, targetID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`UPDATE ski_events SET current_members=GREATEST(1,current_members-1), status='recruiting' WHERE id=?`, eventID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	var requestID int64
+	var requestStatus string
+	if err := tx.QueryRow(`SELECT id, status FROM join_requests WHERE event_id=? AND applicant_id=? FOR UPDATE`, eventID, targetID).Scan(&requestID, &requestStatus); err == nil {
+		if _, err := tx.Exec(`UPDATE join_requests SET status='removed', reject_reason='已被发起人移出行程', updated_at=NOW() WHERE id=?`, requestID); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		if _, err := tx.Exec(`INSERT INTO join_request_history (join_request_id, event_id, applicant_id, from_status, to_status, operator_id, reason) VALUES (?, ?, ?, ?, 'removed', ?, '发起人移出成员')`, requestID, eventID, targetID, requestStatus, operatorID); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`UPDATE users SET join_count=GREATEST(0,join_count-1) WHERE id=?`, targetID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	_ = h.addNotification(targetID, "已退出滑雪局", "你已被发起人移出该行程，无法继续进入群聊", "event_member", "event", eventID)
+	response.Success(c, gin.H{"status": "removed", "currentMembers": maxInt(currentMembers-1, 1)})
+}
+
 func (h *AppHandler) Trips(kind string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !h.requireDB(c) {
 			return
 		}
+		h.reconcileExpiredEvents()
 		userID, ok := currentUserID(c)
 		if !ok {
 			response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
@@ -679,6 +1208,7 @@ func (h *AppHandler) ChatConversations(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
 	}
+	h.reconcileExpiredEvents()
 	userID, ok := currentUserID(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
@@ -754,9 +1284,31 @@ func (h *AppHandler) Messages(c *gin.Context) {
 	if !h.canAccessEvent(c, c.Param("id")) {
 		return
 	}
-	rows, err := h.db.Query(`SELECT m.id, m.sender_id, u.nickname, u.avatar_url, m.message_type, m.content, m.created_at
-		FROM chat_messages m JOIN users u ON u.id=m.sender_id
-		WHERE m.event_id=? AND m.status='normal' ORDER BY m.id ASC LIMIT 200`, c.Param("id"))
+	beforeID, _ := strconv.ParseInt(c.Query("beforeId"), 10, 64)
+	afterID, _ := strconv.ParseInt(c.Query("afterId"), 10, 64)
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	query := `SELECT m.id, m.sender_id, u.nickname, u.avatar_url, m.message_type, m.content, m.created_at
+		FROM chat_messages m JOIN users u ON u.id=m.sender_id WHERE m.event_id=? AND m.status='normal'`
+	args := []interface{}{c.Param("id")}
+	reverse := true
+	if afterID > 0 {
+		query += ` AND m.id>? ORDER BY m.id ASC LIMIT ?`
+		args = append(args, afterID, limit)
+		reverse = false
+	} else if beforeID > 0 {
+		query += ` AND m.id<? ORDER BY m.id DESC LIMIT ?`
+		args = append(args, beforeID, limit)
+	} else {
+		query += ` ORDER BY m.id DESC LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := h.db.Query(query, args...)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -770,7 +1322,16 @@ func (h *AppHandler) Messages(c *gin.Context) {
 		_ = rows.Scan(&id, &senderID, &nickname, &avatarURL, &messageType, &content, &created)
 		list = append(list, gin.H{"id": id, "senderId": senderID, "nickname": nickname, "avatarUrl": avatarURL, "messageType": messageType, "content": content, "createdAt": created, "time": created.Format("15:04")})
 	}
-	response.Success(c, list)
+	if reverse {
+		for left, right := 0, len(list)-1; left < right; left, right = left+1, right-1 {
+			list[left], list[right] = list[right], list[left]
+		}
+	}
+	nextBeforeID := int64(0)
+	if reverse && len(list) == limit {
+		nextBeforeID, _ = list[0]["id"].(int64)
+	}
+	response.Success(c, gin.H{"list": list, "nextBeforeId": nextBeforeID})
 }
 
 func (h *AppHandler) MarkChatRead(c *gin.Context) {
@@ -828,6 +1389,9 @@ func (h *AppHandler) SendMessage(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "content is required")
 		return
 	}
+	if h.rejectLocalRisk(c, req.Content) {
+		return
+	}
 	req.Content = h.cleanText(req.Content)
 	if req.MessageType == "" {
 		req.MessageType = "text"
@@ -867,6 +1431,9 @@ func (h *AppHandler) CreateReview(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid review")
 		return
 	}
+	if h.rejectLocalRisk(c, req.Content, strings.Join(req.PositiveTags, " "), strings.Join(req.NegativeTags, " ")) {
+		return
+	}
 	if req.RevieweeID == userID {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot review yourself")
 		return
@@ -897,6 +1464,10 @@ func (h *AppHandler) CreateReview(c *gin.Context) {
 	req.NegativeTags = h.cleanTexts(req.NegativeTags)
 	req.Content = h.cleanText(req.Content)
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldReview, req.Content); err != nil {
+		h.contentError(c, err)
+		return
+	}
+	if err := h.checkText(c.Request.Context(), userID, compliance.FieldReview, strings.Join(append(req.PositiveTags, req.NegativeTags...), " ")); err != nil {
 		h.contentError(c, err)
 		return
 	}
@@ -965,9 +1536,44 @@ func (h *AppHandler) CreateReport(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid report")
 		return
 	}
+	var exists int
+	switch req.TargetType {
+	case "app":
+		if req.TargetID != 0 {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid app feedback target")
+			return
+		}
+		exists = 1
+	case "user":
+		if req.TargetID == userID {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot report yourself")
+			return
+		}
+		_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id=? AND deleted_at IS NULL`, req.TargetID).Scan(&exists)
+	case "event":
+		_ = h.db.QueryRow(`SELECT COUNT(*) FROM ski_events WHERE id=? AND deleted_at IS NULL`, req.TargetID).Scan(&exists)
+	case "message":
+		_ = h.db.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE id=?`, req.TargetID).Scan(&exists)
+	case "review":
+		_ = h.db.QueryRow(`SELECT COUNT(*) FROM reviews WHERE id=?`, req.TargetID).Scan(&exists)
+	default:
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported report target")
+		return
+	}
+	if exists == 0 {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "report target not found")
+		return
+	}
+	if h.rejectLocalRisk(c, req.Reason, req.Content) {
+		return
+	}
 	req.Reason = h.cleanText(req.Reason)
 	req.Content = h.cleanText(req.Content)
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldReport, req.Content); err != nil {
+		h.contentError(c, err)
+		return
+	}
+	if err := h.checkText(c.Request.Context(), userID, compliance.FieldReport, req.Reason); err != nil {
 		h.contentError(c, err)
 		return
 	}
@@ -1037,18 +1643,47 @@ func (h *AppHandler) SetFollow(follow bool) gin.HandlerFunc {
 			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot follow yourself")
 			return
 		}
+		var targetCount int
+		if err := h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id=? AND deleted_at IS NULL AND status='normal'`, targetID).Scan(&targetCount); err != nil || targetCount == 0 {
+			response.Error(c, http.StatusNotFound, response.CodeNotFound, "user not found")
+			return
+		}
 		if follow {
-			if _, err := h.db.Exec(`INSERT IGNORE INTO user_follows (follower_id, followee_id) VALUES (?, ?)`, userID, targetID); err != nil {
+			result, err := h.db.Exec(`INSERT IGNORE INTO user_follows (follower_id, followee_id) VALUES (?, ?)`, userID, targetID)
+			if err != nil {
 				response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 				return
 			}
-			_ = h.addNotification(targetID, "有新的雪友关注你", "对方已关注你的雪友主页", "follow", "user", userID)
+			if affected, _ := result.RowsAffected(); affected > 0 {
+				_ = h.addNotification(targetID, "有新的雪友关注你", "对方已关注你的雪友主页", "follow", "user", userID)
+			}
 		} else if _, err := h.db.Exec(`DELETE FROM user_follows WHERE follower_id=? AND followee_id=?`, userID, targetID); err != nil {
 			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 			return
 		}
 		response.Success(c, gin.H{"following": follow})
 	}
+}
+
+func (h *AppHandler) FollowStatus(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	userID, ok := currentUserID(c)
+	if !ok || !h.ensureActive(c, userID) {
+		return
+	}
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || targetID == 0 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid user")
+		return
+	}
+	var count int
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM user_follows WHERE follower_id=? AND followee_id=?`, userID, targetID).Scan(&count); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"following": count > 0})
 }
 
 func (h *AppHandler) Notifications(c *gin.Context) {
@@ -1174,6 +1809,66 @@ type eventRequest struct {
 	ImageURL       string   `json:"imageUrl"`
 }
 
+func validateEventRequest(req eventRequest, currentMembers int) string {
+	if strings.TrimSpace(req.ResortName) == "" && req.ResortID <= 0 {
+		return "resort is required"
+	}
+	if req.MaxMembers < currentMembers || req.MaxMembers > 12 {
+		return "maxMembers must include current members and be between 1 and 12"
+	}
+	date, err := time.Parse("2006-01-02", req.EventDate)
+	if err != nil {
+		return "eventDate must use YYYY-MM-DD"
+	}
+	today, _ := time.ParseInLocation("2006-01-02", time.Now().Format("2006-01-02"), time.Local)
+	if date.Before(today) {
+		return "eventDate cannot be in the past"
+	}
+	if strings.TrimSpace(req.DepartCity) == "" || strings.TrimSpace(req.DepartArea) == "" || strings.TrimSpace(req.MeetPlace) == "" {
+		return "departure and meeting place are required"
+	}
+	if req.StartTime != "" {
+		startTime, err := time.ParseInLocation("2006-01-02 15:04:05", req.StartTime, time.Local)
+		if err != nil {
+			return "startTime must use YYYY-MM-DD HH:mm:ss"
+		}
+		if startTime.Format("2006-01-02") != req.EventDate {
+			return "startTime must match eventDate"
+		}
+		if startTime.Before(time.Now()) {
+			return "startTime cannot be in the past"
+		}
+	}
+	if !stringIn(req.SkiTypeReq, "snowboard", "ski", "both") {
+		return "invalid skiTypeReq"
+	}
+	if !stringIn(req.LevelReq, "beginner", "primary", "intermediate", "advanced") {
+		return "invalid levelReq"
+	}
+	if !stringIn(req.TrafficType, "self_drive", "high_speed_rail", "bus", "other") {
+		return "invalid trafficType"
+	}
+	return ""
+}
+
+func (h *AppHandler) reconcileExpiredEvents() {
+	if h == nil || h.db == nil {
+		return
+	}
+	_, _ = h.db.Exec(`UPDATE ski_events SET status='finished'
+		WHERE deleted_at IS NULL AND status IN ('recruiting','full')
+		AND (event_date<CURDATE() OR (event_date=CURDATE() AND start_time IS NOT NULL AND start_time<NOW()))`)
+}
+
+func stringIn(value string, allowed ...string) bool {
+	for _, item := range allowed {
+		if value == item {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *AppHandler) cleanEventRequest(req *eventRequest) {
 	if req == nil {
 		return
@@ -1244,13 +1939,12 @@ func (h *AppHandler) upsertUserByOpenID(openid, unionid string) (gin.H, error) {
 func (h *AppHandler) userByID(id int64) (gin.H, error) {
 	var styleTags, favoriteResorts sql.NullString
 	var user userRow
-	var phone sql.NullString
-	err := h.db.QueryRow(`SELECT id, openid, phone, nickname, avatar_url, gender, gender_visible, city, ski_type, ski_level, style_tags, favorite_resorts, has_car, credit_score, event_count, join_count, good_rate, status, created_at, updated_at FROM users WHERE id=? AND deleted_at IS NULL`, id).
-		Scan(&user.ID, &user.OpenID, &phone, &user.Nickname, &user.AvatarURL, &user.Gender, &user.GenderVisible, &user.City, &user.SkiType, &user.SkiLevel, &styleTags, &favoriteResorts, &user.HasCar, &user.CreditScore, &user.EventCount, &user.JoinCount, &user.GoodRate, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	err := h.db.QueryRow(`SELECT id, openid, nickname, avatar_url, bio, gender, gender_visible, city, ski_type, ski_level, style_tags, favorite_resorts, has_car, credit_score, event_count, join_count, good_rate, status, created_at, updated_at FROM users WHERE id=? AND deleted_at IS NULL`, id).
+		Scan(&user.ID, &user.OpenID, &user.Nickname, &user.AvatarURL, &user.Bio, &user.Gender, &user.GenderVisible, &user.City, &user.SkiType, &user.SkiLevel, &styleTags, &favoriteResorts, &user.HasCar, &user.CreditScore, &user.EventCount, &user.JoinCount, &user.GoodRate, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{"id": user.ID, "openid": user.OpenID, "phone": phone.String, "nickname": user.Nickname, "avatarUrl": user.AvatarURL, "gender": user.Gender, "genderVisible": user.GenderVisible == 1, "city": user.City, "skiType": user.SkiType, "skiLevel": user.SkiLevel, "styleTags": jsonList(styleTags.String), "favoriteResorts": jsonList(favoriteResorts.String), "hasCar": user.HasCar == 1, "creditScore": user.CreditScore, "eventCount": user.EventCount, "joinCount": user.JoinCount, "goodRate": user.GoodRate, "status": user.Status, "createdAt": user.CreatedAt, "updatedAt": user.UpdatedAt}, nil
+	return gin.H{"id": user.ID, "openid": user.OpenID, "nickname": user.Nickname, "avatarUrl": user.AvatarURL, "bio": user.Bio, "gender": user.Gender, "genderVisible": user.GenderVisible == 1, "city": user.City, "skiType": user.SkiType, "skiLevel": user.SkiLevel, "styleTags": jsonList(styleTags.String), "favoriteResorts": jsonList(favoriteResorts.String), "hasCar": user.HasCar == 1, "creditScore": user.CreditScore, "eventCount": user.EventCount, "joinCount": user.JoinCount, "goodRate": user.GoodRate, "status": user.Status, "createdAt": user.CreatedAt, "updatedAt": user.UpdatedAt}, nil
 }
 
 func (h *AppHandler) userByIDParam(id string) (gin.H, error) {
@@ -1351,7 +2045,7 @@ func (h *AppHandler) attachEventMembers(events []gin.H) error {
 
 func (h *AppHandler) eventByID(id string) (gin.H, error) {
 	row := h.db.QueryRow(`SELECT e.id, e.title, e.creator_id, u.nickname, u.avatar_url, u.credit_score, u.event_count, e.resort_id, e.resort_name, e.event_date, e.start_time, e.depart_city, e.depart_area, e.meet_place, e.traffic_type, e.max_members, e.current_members, e.ski_type_req, e.level_req, e.purpose_tags, e.allow_beginner, e.same_gender_only, e.allow_car_pool, e.allow_room_share, e.allow_photo, e.cost_desc, e.remark, e.image_url, e.status, e.view_count, e.created_at, e.updated_at
-		FROM ski_events e JOIN users u ON u.id=e.creator_id WHERE e.id=? AND e.deleted_at IS NULL`, id)
+		FROM ski_events e JOIN users u ON u.id=e.creator_id WHERE e.id=? AND e.deleted_at IS NULL AND e.status<>'removed'`, id)
 	return scanEvent(row)
 }
 
@@ -1394,6 +2088,7 @@ type userRow struct {
 	OpenID        string
 	Nickname      string
 	AvatarURL     string
+	Bio           string
 	Gender        int
 	GenderVisible int
 	City          string
@@ -1452,13 +2147,15 @@ func (h *AppHandler) ensureActive(c *gin.Context, userID int64) bool {
 }
 
 func (h *AppHandler) canAccessEvent(c *gin.Context, eventID string) bool {
+	h.reconcileExpiredEvents()
 	userID, ok := currentUserID(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
 		return false
 	}
 	var count int
-	if err := h.db.QueryRow(`SELECT COUNT(*) FROM event_members WHERE event_id=? AND user_id=? AND status='active'`, eventID, userID).Scan(&count); err != nil {
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM event_members m JOIN ski_events e ON e.id=m.event_id
+		WHERE m.event_id=? AND m.user_id=? AND m.status='active' AND e.deleted_at IS NULL AND e.status IN ('recruiting','full')`, eventID, userID).Scan(&count); err != nil {
 		h.sqlError(c, err)
 		return false
 	}
@@ -1512,6 +2209,57 @@ func (h *AppHandler) checkText(ctx context.Context, userID int64, field complian
 	var openid string
 	_ = h.db.QueryRow(`SELECT openid FROM users WHERE id=?`, userID).Scan(&openid)
 	return h.security.CheckText(ctx, contentsecurity.TextCheckRequest{OpenID: openid, Scene: 2, Field: field, Content: content})
+}
+
+func (h *AppHandler) rejectLocalRisk(c *gin.Context, values ...string) bool {
+	if h == nil || h.textFilter == nil {
+		return false
+	}
+	for _, value := range values {
+		if value != "" && h.textFilter.Clean(value) != value {
+			response.ContentRisk(c)
+			return true
+		}
+	}
+	return false
+}
+
+func pointerString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+func pointerSlice(value *[]string) []string {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func (h *AppHandler) isApprovedAvatar(userID int64, imageURL string) bool {
+	var count int
+	_ = h.db.QueryRow(`SELECT COUNT(*) FROM media_uploads WHERE user_id=? AND kind='avatars' AND public_url=? AND status='approved'`, userID, imageURL).Scan(&count)
+	if count > 0 {
+		return true
+	}
+	// Preserve an already stored legacy avatar without allowing a new URL.
+	_ = h.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id=? AND avatar_url=?`, userID, imageURL).Scan(&count)
+	return count > 0
+}
+
+func (h *AppHandler) isAllowedEventImage(userID int64, imageURL string) bool {
+	var count int
+	_ = h.db.QueryRow(`SELECT COUNT(*) FROM media_uploads WHERE user_id=? AND kind='events' AND public_url=? AND status='approved'`, userID, imageURL).Scan(&count)
+	if count > 0 {
+		return true
+	}
+	_ = h.db.QueryRow(`SELECT COUNT(*) FROM ski_resorts WHERE image_url=? AND status='normal'`, imageURL).Scan(&count)
+	if count > 0 {
+		return true
+	}
+	_ = h.db.QueryRow(`SELECT COUNT(*) FROM ski_events WHERE creator_id=? AND image_url=?`, userID, imageURL).Scan(&count)
+	return count > 0
 }
 
 func (h *AppHandler) contentError(c *gin.Context, err error) {

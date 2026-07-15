@@ -49,6 +49,18 @@
           <el-icon><Collection /></el-icon>
           <span>字典管理</span>
         </el-menu-item>
+		<el-menu-item index="/content-reviews">
+		  <el-icon><View /></el-icon>
+		  <span>内容审核</span>
+		</el-menu-item>
+		<el-menu-item index="/uploads">
+		  <el-icon><Picture /></el-icon>
+		  <span>媒体审核</span>
+		</el-menu-item>
+		<el-menu-item index="/audit-logs">
+		  <el-icon><Document /></el-icon>
+		  <span>操作审计</span>
+		</el-menu-item>
       </el-menu>
 
       <div class="sidebar-note">
@@ -78,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { Calendar, ChatDotRound, Collection, HomeFilled, Star, Tickets, User, Warning } from "@element-plus/icons-vue"
+import { Calendar, ChatDotRound, Collection, Document, HomeFilled, Picture, Star, Tickets, User, View, Warning } from "@element-plus/icons-vue"
 import { computed } from "vue"
 import { useRoute, useRouter } from "vue-router"
 

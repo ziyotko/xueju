@@ -587,6 +587,15 @@ button {
   display: block;
 }
 
+.footer-inner a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer-inner a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 1080px) {
   .hero-grid {
     gap: 42px;

@@ -45,7 +45,7 @@
           <view class="host-credit">{{event.hostCreditText}}</view>
         </view>
       </view>
-      <view wx:if="{{canFollowHost}}" class="button-outline follow" bindtap="followHost">关注</view>
+	  <view wx:if="{{canFollowHost}}" class="button-outline follow" bindtap="followHost">{{hostFollowing ? '取消关注' : '关注'}}</view>
     </view>
   </view>
 

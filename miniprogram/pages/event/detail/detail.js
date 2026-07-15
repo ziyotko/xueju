@@ -12,15 +12,16 @@ function buildActionState(event, requests, options = {}) {
   const isApproved = myRequest && myRequest.status === 'approved'
   const isPending = myRequest && myRequest.status === 'pending'
   const isFinished = event.status === 'finished'
+	const isActive = event.status === 'recruiting' || event.status === 'full'
   return {
     isCreator,
     isApproved,
     isPending,
-    canManage: isCreator,
-    canChat: isCreator || isApproved,
-    canApply: !isCreator && !isApproved && !isPending && !isFinished,
+    canManage: isCreator && isActive,
+    canChat: (isCreator || isApproved) && isActive,
+    canApply: isActive && !isCreator && !isApproved && !isPending,
     canReview: isFinished,
-    primaryText: isCreator ? '进入群聊' : isApproved ? '进入群聊' : isPending ? '待审核' : isFinished ? '去评价' : '申请加入'
+    primaryText: isFinished ? '去评价' : isCreator ? '进入群聊' : isApproved ? '进入群聊' : isPending ? '待审核' : isActive ? '申请加入' : '行程已取消'
   }
 }
 
@@ -50,6 +51,7 @@ Page({
     memberCount: 0,
     isFavorite: false,
     canFollowHost: false,
+	hostFollowing: false,
     fromShare: false,
     actionState: {},
     rules: ['遵守雪场通行和水平要求，安全第一', '不线下爽约，互相尊重', '有任何问题及时沟通']
@@ -77,12 +79,17 @@ Page({
       } catch (error) {}
       const members = event.members || []
       const actionState = buildActionState(event, requests, { fromShare: this.data.fromShare })
+	  let hostFollowing = false
+	  if (!actionState.isCreator && event.creatorId) {
+		try { hostFollowing = !!(await api.followStatus(event.creatorId)).following } catch (error) {}
+	  }
       this.setData({
         event,
         members,
         memberCount: members.length,
         isFavorite: favoriteIds.includes(Number(id)),
         canFollowHost: !actionState.isCreator,
+		hostFollowing,
         actionState
       })
     } catch (error) {
@@ -104,24 +111,46 @@ Page({
   openMore() {
     const isCreator = this.data.actionState && this.data.actionState.isCreator
     const canFinish = isCreator && !['finished', 'cancelled', 'removed'].includes(this.data.event.status)
-    const itemList = isCreator
-      ? (canFinish ? ['结束行程', '删除该雪局', '复制集合信息', '查看发起人主页'] : ['删除该雪局', '复制集合信息', '查看发起人主页'])
+	const itemList = isCreator
+	  ? (canFinish ? ['编辑行程', '取消行程', '结束行程', '复制集合信息', '查看发起人主页'] : ['复制集合信息', '查看发起人主页'])
       : ['举报该行程', '复制集合信息', '查看发起人主页']
 
     wx.showActionSheet({
       itemList,
       success: (res) => {
-        if (isCreator && canFinish && res.tapIndex === 0) { this.confirmFinish(); return }
-        if (isCreator && res.tapIndex === (canFinish ? 1 : 0)) { this.confirmDelete(); return }
+		if (isCreator && canFinish && res.tapIndex === 0) { this.goEdit(); return }
+		if (isCreator && canFinish && res.tapIndex === 1) { this.confirmCancel(); return }
+		if (isCreator && canFinish && res.tapIndex === 2) { this.confirmFinish(); return }
         if (!isCreator && res.tapIndex === 0) { this.reportEvent(); return }
 
-        const copyIndex = isCreator ? (canFinish ? 2 : 1) : 1
-        const profileIndex = isCreator ? (canFinish ? 3 : 2) : 2
+		const copyIndex = isCreator ? (canFinish ? 3 : 0) : 1
+		const profileIndex = isCreator ? (canFinish ? 4 : 1) : 2
         if (res.tapIndex === copyIndex) this.copyMeetInfo()
         if (res.tapIndex === profileIndex) this.goCreatorProfile()
       }
     })
   },
+
+	goEdit() {
+	  wx.navigateTo({ url: `/pages/event/create/create?id=${this.data.event.id}` })
+	},
+
+	confirmCancel() {
+	  wx.showModal({
+		title: '取消行程？',
+		content: '取消后停止招募并关闭群聊，历史记录仍会保留。',
+		confirmText: '确认取消',
+		confirmColor: '#EF4444',
+		success: async (res) => {
+		  if (!res.confirm) return
+		  try {
+			await api.cancelEvent(this.data.event.id)
+			wx.showToast({ title: '行程已取消', icon: 'success' })
+			this.loadDetail(this.data.event.id)
+		  } catch (error) {}
+		}
+	  })
+	},
 
   confirmFinish() {
     wx.showModal({
@@ -134,23 +163,6 @@ Page({
           await api.finishEvent(this.data.event.id)
           wx.showToast({ title: '行程已结束', icon: 'success' })
           this.loadDetail(this.data.event.id)
-        } catch (error) {}
-      }
-    })
-  },
-
-  confirmDelete() {
-    wx.showModal({
-      title: '删除雪局？',
-      content: '删除后将不再展示在发现页和我的行程中，其他雪友也无法继续查看。',
-      confirmText: '删除',
-      confirmColor: '#EF4444',
-      success: async (res) => {
-        if (!res.confirm) return
-        try {
-          await api.deleteEvent(this.data.event.id)
-          wx.showToast({ title: '已删除', icon: 'success' })
-          setTimeout(() => wx.navigateBack(), 500)
         } catch (error) {}
       }
     })
@@ -190,6 +202,7 @@ Page({
     if (state.canChat) { this.goChat(); return }
     if (state.isPending) { wx.showToast({ title: '申请正在等待发起人审核', icon: 'none' }); return }
     if (state.canReview) { wx.navigateTo({ url: `/pages/review/create/create?eventId=${this.data.event.id}` }); return }
+	if (!state.canApply) { wx.showToast({ title: '当前行程不可申请', icon: 'none' }); return }
     this.goApply()
   },
 
@@ -215,8 +228,10 @@ Page({
     const user = currentUser()
     if (Number(creatorId) === Number(user.id)) return
     try {
-      await api.followUser(creatorId, true)
-      wx.showToast({ title: '已关注发起人', icon: 'success' })
+	  const following = !this.data.hostFollowing
+	  await api.followUser(creatorId, following)
+	  this.setData({ hostFollowing: following })
+	  wx.showToast({ title: following ? '已关注发起人' : '已取消关注', icon: 'success' })
     } catch (error) {}
   }
 })

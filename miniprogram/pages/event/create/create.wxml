@@ -35,11 +35,11 @@
       <input class="form-input" value="{{form.meetPlace}}" data-key="meetPlace" bindinput="onFormInput" placeholder="例如：朝阳大悦城停车场" />
     </view>
     <view class="form-row people-row">
-      <text>人数需求</text>
+      <text>总人数</text>
       <view class="people-control">
         <t-stepper value="{{form.people}}" min="{{1}}" max="{{12}}" theme="filled" size="small" disable-input bind:change="onPeopleChange" />
       </view>
-      <text class="people-hint">还缺{{form.people}}人</text>
+      <text class="people-hint">包含发起人</text>
     </view>
   </view>
 
@@ -58,21 +58,13 @@
   <view class="form-card card">
     <view class="block-title">其他信息</view>
     <view class="toggle-row" wx:for="{{toggles}}" wx:key="key"><text>{{item.label}}</text><t-switch value="{{item.checked}}" data-index="{{index}}" bind:change="onToggle" /></view>
-    <picker mode="selector" range="{{contactTypes}}" value="{{contactTypeIndex}}" bindchange="onContactTypeChange">
-      <view class="form-row"><text>联系方式类型</text><view class="row-value"><text>{{form.contactType}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
-    </picker>
-    <view class="form-row" wx:if="{{form.contactType !== '站内消息'}}">
-      <text>联系方式内容</text>
-      <input class="form-input" value="{{form.contactContent}}" bindinput="onContactInput" placeholder="可选填写" />
-    </view>
-    <view class="toggle-row"><text>公开联系方式</text><t-switch value="{{form.contactPublic}}" bind:change="onContactPublic" /></view>
-    <view class="contact-tip">默认通过站内消息联系；手机号和微信号默认不公开。</view>
+    <view class="contact-tip">申请通过后统一通过站内群聊沟通，不公开任何联系方式。</view>
     <textarea class="note" maxlength="100" value="{{form.note}}" bindinput="onNoteInput" placeholder="住宿、集合和行程补充说明（选填）" />
     <view class="counter">{{form.noteCount}}/100</view>
   </view>
 
   <view class="compliance-tip">{{contentRiskMessage}}</view>
   <view class="fixed-submit">
-    <t-button theme="primary" shape="round" block customStyle="height: 82rpx; box-shadow: 0 18rpx 36rpx rgba(79, 70, 229, 0.22);" bind:tap="submit">发布滑雪行程</t-button>
+      <t-button theme="primary" shape="round" block disabled="{{submitting}}" loading="{{submitting}}" customStyle="height: 82rpx; box-shadow: 0 18rpx 36rpx rgba(79, 70, 229, 0.22);" bind:tap="submit">{{submitting ? '提交中...' : (editMode ? '保存行程修改' : '发布滑雪行程')}}</t-button>
   </view>
 </view>

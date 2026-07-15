@@ -22,9 +22,11 @@ Page({
   data: {
     userId: 0,
     isSelf: false,
+	following: false,
     name: '雪友',
     initial: '雪',
     level: '滑雪资料待完善',
+	bio: '',
     credit: '',
     tags: [],
     reviews: [],
@@ -50,9 +52,16 @@ Page({
       name,
       initial: user.initial || name.slice(0, 1),
       level: displayLevel(user),
+	  bio: user.bio || '',
       credit: user.credit || (user.creditScore ? `信用 ${Number(user.creditScore).toFixed(1)}` : ''),
       tags: user.styleTags || []
     })
+	if (myId && Number(userId) !== myId) {
+	  try {
+		const state = await api.followStatus(userId)
+		this.setData({ following: !!state.following })
+	  } catch (error) {}
+	}
 
     try {
       const reviews = await api.userReviews(userId)
@@ -69,12 +78,19 @@ Page({
       return
     }
     try {
-      await api.followUser(this.data.userId, true)
-      wx.showToast({ title: '已关注', icon: 'success' })
+	  const following = !this.data.following
+	  await api.followUser(this.data.userId, following)
+	  this.setData({ following })
+	  wx.showToast({ title: following ? '已关注' : '已取消关注', icon: 'success' })
     } catch (error) {}
   },
 
   report() {
     wx.navigateTo({ url: `/pages/report/report?targetType=user&targetId=${this.data.userId || 1}` })
+	},
+
+	reportReview(event) {
+	  const id = Number(event.currentTarget.dataset.id || 0)
+	  if (id) wx.navigateTo({ url: `/pages/report/report?targetType=review&targetId=${id}` })
   }
 })

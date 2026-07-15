@@ -100,6 +100,7 @@ Page({
     if (item.filter === 'room') params.allowRoomShare = true
     if (item.filter === 'beginner') params.allowBeginner = true
     if (item.filter === 'latest') params.sort = 'latest'
+    if (item.filter === 'city') params.city = this.data.city
     this.setData({ activeFilters: params }, () => this.loadEvents())
     wx.showToast({ title: `已筛选：${item.text}`, icon: 'none' })
   },

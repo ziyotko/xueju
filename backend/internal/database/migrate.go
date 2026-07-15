@@ -1,6 +1,10 @@
 package database
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+)
 
 func Migrate(db *sql.DB) error {
 	if db == nil {
@@ -17,6 +21,7 @@ func Migrate(db *sql.DB) error {
 			gender TINYINT NOT NULL DEFAULT 0,
 			gender_visible TINYINT NOT NULL DEFAULT 1,
 			phone VARCHAR(32) NULL,
+			bio VARCHAR(500) NOT NULL DEFAULT '',
 			city VARCHAR(64) NOT NULL DEFAULT '',
 			ski_type VARCHAR(32) NOT NULL DEFAULT '',
 			ski_level VARCHAR(32) NOT NULL DEFAULT '',
@@ -103,7 +108,7 @@ func Migrate(db *sql.DB) error {
 			reject_reason VARCHAR(255) NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			UNIQUE KEY uniq_join_pending (event_id, applicant_id, status),
+			UNIQUE KEY uniq_join_event_applicant (event_id, applicant_id),
 			INDEX idx_join_applicant (applicant_id),
 			INDEX idx_join_creator (creator_id)
 		)`,
@@ -183,6 +188,53 @@ func Migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			INDEX idx_notifications_user_read (user_id, is_read, created_at)
 		)`,
+		`CREATE TABLE IF NOT EXISTS join_request_history (
+			id BIGINT PRIMARY KEY AUTO_INCREMENT,
+			join_request_id BIGINT NOT NULL,
+			event_id BIGINT NOT NULL,
+			applicant_id BIGINT NOT NULL,
+			from_status VARCHAR(32) NOT NULL DEFAULT '',
+			to_status VARCHAR(32) NOT NULL,
+			operator_id BIGINT NOT NULL DEFAULT 0,
+			reason VARCHAR(255) NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			INDEX idx_join_history_request (join_request_id, created_at)
+		)`,
+		`CREATE TABLE IF NOT EXISTS media_uploads (
+			id BIGINT PRIMARY KEY AUTO_INCREMENT,
+			user_id BIGINT NOT NULL,
+			kind VARCHAR(32) NOT NULL,
+			path VARCHAR(500) NOT NULL,
+			public_url VARCHAR(500) NOT NULL DEFAULT '',
+			review_token VARCHAR(64) NOT NULL DEFAULT '',
+			trace_id VARCHAR(128) NOT NULL DEFAULT '',
+			mime_type VARCHAR(64) NOT NULL,
+			status VARCHAR(32) NOT NULL DEFAULT 'pending',
+			review_result VARCHAR(255) NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			INDEX idx_media_status (status, created_at),
+			INDEX idx_media_trace (trace_id),
+			INDEX idx_media_user (user_id, created_at)
+		)`,
+		`CREATE TABLE IF NOT EXISTS admin_action_logs (
+			id BIGINT PRIMARY KEY AUTO_INCREMENT,
+			admin_username VARCHAR(128) NOT NULL,
+			resource VARCHAR(64) NOT NULL,
+			target_id VARCHAR(64) NOT NULL,
+			action VARCHAR(64) NOT NULL,
+			before_status VARCHAR(32) NOT NULL DEFAULT '',
+			after_status VARCHAR(32) NOT NULL DEFAULT '',
+			detail VARCHAR(1000) NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			INDEX idx_admin_logs_created (created_at),
+			INDEX idx_admin_logs_target (resource, target_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS schema_migrations (
+			version BIGINT PRIMARY KEY,
+			name VARCHAR(128) NOT NULL,
+			applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, statement := range statements {
@@ -191,6 +243,68 @@ func Migrate(db *sql.DB) error {
 		}
 	}
 	if err := ensureColumn(db, "ski_events", "image_url", "VARCHAR(500) NOT NULL DEFAULT '' AFTER remark"); err != nil {
+		return err
+	}
+	if err := applyMigration(db, 2026071301, "launch hardening", func(tx *sql.Tx) error {
+		if err := ensureColumnTx(tx, "users", "bio", "VARCHAR(500) NOT NULL DEFAULT '' AFTER phone"); err != nil {
+			return err
+		}
+		// Phone numbers are no longer part of the product. Keep the nullable
+		// column for rollback compatibility, but erase legacy PII once.
+		if _, err := tx.Exec(`UPDATE users SET phone=NULL WHERE phone IS NOT NULL`); err != nil {
+			return err
+		}
+		// Older schemas allowed one row per status, which made a second reject
+		// collide with the first. Keep the newest row and enforce one current
+		// application per event/user pair.
+		if _, err := tx.Exec(`DELETE older FROM join_requests older JOIN join_requests newer
+			ON older.event_id=newer.event_id AND older.applicant_id=newer.applicant_id AND older.id<newer.id`); err != nil {
+			return err
+		}
+		if err := dropIndexIfExists(tx, "join_requests", "uniq_join_pending"); err != nil {
+			return err
+		}
+		return ensureUniqueIndex(tx, "join_requests", "uniq_join_event_applicant", "event_id, applicant_id")
+	}); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "media_uploads", "review_token", "VARCHAR(64) NOT NULL DEFAULT '' AFTER public_url"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "media_uploads", "trace_id", "VARCHAR(128) NOT NULL DEFAULT '' AFTER review_token"); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_media_trace ON media_uploads (trace_id)`); err != nil && !isDuplicateIndexError(err) {
+		return err
+	}
+	if err := applyMigration(db, 2026071302, "register legacy media", func(tx *sql.Tx) error {
+		// Media that was already referenced by a user or event predates the
+		// asynchronous review table. Grandfather only those referenced files;
+		// all newly uploaded media continues through the pending review flow.
+		if _, err := tx.Exec(`INSERT INTO media_uploads (user_id, kind, path, public_url, mime_type, status, review_result)
+			SELECT u.id, 'avatars', SUBSTRING_INDEX(u.avatar_url, '/uploads/', -1), u.avatar_url,
+				CASE WHEN LOWER(u.avatar_url) LIKE '%.png' THEN 'image/png' ELSE 'image/jpeg' END,
+				'approved', 'legacy_migration'
+			FROM users u
+			WHERE u.avatar_url LIKE '%/uploads/%'
+			AND NOT EXISTS (
+				SELECT 1 FROM media_uploads m
+				WHERE m.path=SUBSTRING_INDEX(u.avatar_url, '/uploads/', -1)
+			)`); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`INSERT INTO media_uploads (user_id, kind, path, public_url, mime_type, status, review_result)
+			SELECT e.creator_id, 'events', SUBSTRING_INDEX(e.image_url, '/uploads/', -1), e.image_url,
+				CASE WHEN LOWER(e.image_url) LIKE '%.png' THEN 'image/png' ELSE 'image/jpeg' END,
+				'approved', 'legacy_migration'
+			FROM ski_events e
+			WHERE e.image_url LIKE '%/uploads/%'
+			AND NOT EXISTS (
+				SELECT 1 FROM media_uploads m
+				WHERE m.path=SUBSTRING_INDEX(e.image_url, '/uploads/', -1)
+			)`)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -215,6 +329,72 @@ func Migrate(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func applyMigration(db *sql.DB, version int64, name string, fn func(*sql.Tx) error) error {
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version=?`, version).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := fn(tx); err != nil {
+		return fmt.Errorf("migration %d %s: %w", version, name, err)
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations (version, name) VALUES (?, ?)`, version, name); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func ensureColumnTx(tx *sql.Tx, table, column, definition string) error {
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?`, table, column).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
+	return err
+}
+
+func dropIndexIfExists(tx *sql.Tx, table, index string) error {
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?`, table, index).Scan(&count); err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE ` + table + ` DROP INDEX ` + index)
+	return err
+}
+
+func ensureUniqueIndex(tx *sql.Tx, table, index, columns string) error {
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?`, table, index).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE ` + table + ` ADD UNIQUE INDEX ` + index + ` (` + columns + `)`)
+	return err
+}
+
+func isDuplicateIndexError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "duplicate key name") || strings.Contains(message, "already exists")
 }
 
 func ensureColumn(db *sql.DB, table, column, definition string) error {

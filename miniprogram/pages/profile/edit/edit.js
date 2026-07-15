@@ -1,5 +1,5 @@
 const api = require('../../../utils/api')
-const { isValidPhone } = require('../../../utils/phone')
+const { requirePrivacyConsent } = require('../../../utils/privacy')
 
 const styleOptions = ["刷道", "刻滑", "节奏稳", "爱拍照", "不赶时间", "公园", "平花"]
 
@@ -19,7 +19,6 @@ Page({
     avatarLocalPath: "",
     avatarChanged: false,
     city: "北京",
-    phone: "",
     bio: "热爱滑雪，周末不是在雪场就是在去雪场的路上。",
     levels: ["新手", "初级", "中级", "高级"],
     levelIndex: 2,
@@ -42,7 +41,7 @@ Page({
         avatarLocalPath: "",
         avatarChanged: false,
         city: profile.city || "北京",
-        phone: profile.phone || "",
+		bio: profile.bio || "",
         levelIndex: Math.max(this.data.levels.indexOf(level), 0),
         skiTypeIndex: Math.max(this.data.skiTypes.indexOf(skiType), 0),
         tags: buildTags(styleOptions, profile.styleTags || [])
@@ -50,6 +49,19 @@ Page({
     } catch (error) {
       wx.showToast({ title: "资料加载失败，请稍后重试", icon: "none" })
     }
+	const pendingUploadId = Number(wx.getStorageSync("xueju_pending_avatar_upload") || 0)
+	if (pendingUploadId) {
+	  try {
+		const upload = await api.uploadStatus(pendingUploadId)
+		if (upload.status === "approved" && upload.url) {
+		  this.setData({ avatarUrl: upload.url, avatarChanged: true })
+		  wx.removeStorageSync("xueju_pending_avatar_upload")
+		} else if (upload.status === "rejected") {
+		  wx.removeStorageSync("xueju_pending_avatar_upload")
+		  wx.showToast({ title: upload.result || "头像未通过审核", icon: "none" })
+		}
+	  } catch (error) {}
+	}
   },
 
   onInput(event) {
@@ -64,7 +76,8 @@ Page({
     const index = Number(event.currentTarget.dataset.index)
     this.setData({ tags: this.data.tags.map((item, currentIndex) => currentIndex === index ? { ...item, selected: !item.selected } : item) })
   },
-  chooseAvatar() {
+	async chooseAvatar() {
+	try { await requirePrivacyConsent() } catch (error) { return }
     const choose = wx.chooseMedia
       ? new Promise((resolve, reject) => {
         wx.chooseMedia({ count: 1, mediaType: ["image"], sourceType: ["album", "camera"], sizeType: ["compressed"], success: resolve, fail: reject })
@@ -87,21 +100,23 @@ Page({
     if (!this.data.avatarChanged) this.setData({ avatarUrl: "" })
   },
   async saveProfile() {
-    const phone = this.data.phone.trim()
-    if (phone && !isValidPhone(phone)) {
-      wx.showToast({ title: "请输入正确的手机号", icon: "none" })
-      return
-    }
+	try { await requirePrivacyConsent() } catch (error) { return }
     const styleTags = this.data.tags.filter((item) => item.selected).map((item) => item.text)
     const skiLevel = ["beginner", "primary", "intermediate", "advanced"][this.data.levelIndex]
     const skiType = ["snowboard", "ski", "both"][this.data.skiTypeIndex]
     try {
       let avatarUrl = this.data.avatarUrl
       if (this.data.avatarChanged && avatarUrl && !isUploadedImageUrl(avatarUrl)) {
-        const uploaded = await api.uploadAvatar(avatarUrl)
+		let uploaded = await api.uploadAvatar(avatarUrl)
+		if (!uploaded.url && uploaded.id) uploaded = await api.waitForUpload(uploaded)
+		if (!uploaded.url) {
+		  if (uploaded.id) wx.setStorageSync("xueju_pending_avatar_upload", uploaded.id)
+		  wx.showToast({ title: "头像审核中，请审核通过后重试", icon: "none" })
+		  return
+		}
         avatarUrl = uploaded.url
       }
-      await api.updateMe({ nickname: this.data.nickname, avatarUrl, phone, city: this.data.city, skiLevel, skiType, styleTags, favoriteResorts: [], genderVisible: true, hasCar: false })
+	  await api.updateMe({ nickname: this.data.nickname, avatarUrl, bio: this.data.bio.trim(), city: this.data.city, skiLevel, skiType, styleTags })
       wx.showToast({ title: "资料已保存", icon: "success" })
       setTimeout(() => wx.navigateBack(), 600)
     } catch (error) {

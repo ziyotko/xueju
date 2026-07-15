@@ -1,5 +1,26 @@
 <view class="filter-page safe-bottom">
   <view class="filter-card card">
+    <view class="section-title">日期与雪场</view>
+    <picker mode="date" value="{{date}}" start="{{dateStart}}" bindchange="onDateChange">
+      <view class="picker-row"><text>出发日期</text><text>{{date || '不限'}}</text></view>
+    </picker>
+    <picker mode="selector" range="{{resorts}}" value="{{resortIndex}}" bindchange="onResortChange">
+      <view class="picker-row"><text>目的雪场</text><text>{{resorts[resortIndex]}}</text></view>
+    </picker>
+  </view>
+
+  <view class="filter-card card">
+    <view class="section-title">单双板</view>
+    <view class="tag-wrap">
+      <t-check-tag wx:for="{{skiTypes}}" wx:key="*this" checked="{{skiType === item}}" content="{{item}}" shape="round" size="large" data-value="{{item}}" bind:change="setSkiType" />
+    </view>
+    <view class="section-title secondary-title">交通方式</view>
+    <view class="tag-wrap">
+      <t-check-tag wx:for="{{trafficTypes}}" wx:key="*this" checked="{{trafficType === item}}" content="{{item}}" shape="round" size="large" data-value="{{item}}" bind:change="setTrafficType" />
+    </view>
+  </view>
+
+  <view class="filter-card card">
     <view class="section-title">滑雪水平</view>
     <view class="tag-wrap">
       <t-check-tag

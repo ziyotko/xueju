@@ -30,7 +30,7 @@ import { loginAdmin } from "../api/http"
 
 const route = useRoute()
 const router = useRouter()
-const username = ref("admin")
+const username = ref("")
 const password = ref("")
 const loading = ref(false)
 

@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21.4"
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            admin/package-lock.json
+            miniprogram/package-lock.json
+      - name: Backend tests
+        working-directory: backend
+        run: go test ./...
+      - name: Admin build
+        working-directory: admin
+        run: npm ci && npm run build
+      - name: Miniprogram dependencies and syntax
+        working-directory: miniprogram
+        run: |
+          npm ci
+          find . -name '*.js' -not -path './node_modules/*' -not -path './miniprogram_npm/*' -print0 | xargs -0 -n1 node --check
+
+  mysql-integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: xueju_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21.4"
+      - name: MySQL workflow tests
+        working-directory: backend
+        env:
+          XUEJU_TEST_MYSQL_DSN: root:root@tcp(127.0.0.1:3306)/xueju_test?charset=utf8mb4&parseTime=True&loc=Local
+        run: go test ./integration -v

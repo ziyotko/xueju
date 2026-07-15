@@ -1,7 +1,5 @@
-const { requirePrivacyConsent } = require('../../utils/privacy')
 const { profileCover } = require('../../data/mock')
 const api = require('../../utils/api')
-const { maskPhone } = require('../../utils/phone')
 
 function mapReview(item) {
   const name = item.reviewerName || item.name || (item.anonymous ? '匿名雪友' : '雪友')
@@ -21,31 +19,22 @@ Page({
     nickname: '雪友',
     avatarUrl: '',
     avatarInitial: '雪',
-    level: '中级',
+	level: '未填写水平',
     skiTypeText: '',
     city: '',
-    bio: '热爱滑雪，周末不是在雪场就是在去雪场的路上。',
-    phoneText: '未填写',
-    phoneHint: '用于活动报名、预约确认和必要联系',
+	bio: '',
     profileCover,
-    privacyReady: false,
     reviewCount: 0,
     stats: [
       { value: 0, label: '发起局数' },
       { value: 0, label: '加入局数' },
-      { value: 0, label: '相册' },
+      { value: '5.0', label: '信用分' },
       { value: '100%', label: '好评率' }
     ],
-    certifications: ['手机认证', '实名认证', '滑雪水平认证'],
-    resorts: ['崇礼万龙', '崇礼云顶', '南山滑雪场'],
-    styles: ['刷道', '节奏稳', '爱拍照'],
+	certifications: ['微信登录', '站内沟通'],
+	resorts: [],
+	styles: [],
     reviews: []
-  },
-
-  onLoad() {
-    requirePrivacyConsent()
-      .then(() => this.setData({ privacyReady: true }))
-      .catch(() => wx.showToast({ title: '请先同意隐私保护指引', icon: 'none' }))
   },
 
   onShow() {
@@ -57,21 +46,21 @@ Page({
   async loadProfile() {
     try {
       const profile = await api.me()
+	  const levelText = { beginner: '新手', primary: '初级', intermediate: '中级', advanced: '高级' }
       this.setData({
         nickname: profile.nickname || '雪友',
         avatarUrl: profile.avatarUrl || '',
         avatarInitial: (profile.nickname || '雪').slice(0, 1),
-        level: profile.skiLevel || '中级',
+		level: levelText[profile.skiLevel] || '未填写水平',
         skiTypeText: profile.skiType === 'ski' ? '双板' : profile.skiType === 'both' ? '单双板' : profile.skiType === 'snowboard' ? '单板' : '',
         city: profile.city || '',
-        phoneText: maskPhone(profile.phone) || '未填写',
-        phoneHint: profile.phone ? '手机号仅自己可见' : '用于活动报名、预约确认和必要联系',
+		bio: profile.bio || '',
         styles: profile.styleTags && profile.styleTags.length ? profile.styleTags : this.data.styles,
         resorts: profile.favoriteResorts && profile.favoriteResorts.length ? profile.favoriteResorts : this.data.resorts,
         stats: [
           { value: profile.eventCount || 0, label: '发起局数' },
           { value: profile.joinCount || 0, label: '加入局数' },
-          { value: 0, label: '相册' },
+          { value: Number(profile.creditScore || 5).toFixed(1), label: '信用分' },
           { value: `${Math.round(profile.goodRate || 100)}%`, label: '好评率' }
         ]
       })
@@ -80,7 +69,6 @@ Page({
     } catch (error) {
       this.setData({
         reviews: [],
-        phoneText: '未填写',
         reviewCount: 0
       })
     }
