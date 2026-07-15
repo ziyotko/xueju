@@ -536,20 +536,55 @@ button {
 
 .site-footer {
   border-top: 1px solid var(--line);
-  padding: 24px 0 30px;
+  background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  padding: 28px 0 34px;
 }
 
 .footer-inner {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 28px;
+  gap: 18px 28px;
   color: #8b96a6;
   font-size: 14px;
+  flex-wrap: wrap;
 }
 
-.footer-inner p {
+.footer-copy {
   margin: 0;
+  font-weight: 500;
+}
+
+.footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #7a8799;
+  transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+  color: var(--blue);
+}
+
+.footer-divider {
+  color: #c5cedc;
+  user-select: none;
+}
+
+.bei-badge {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  display: block;
 }
 
 @media (max-width: 1080px) {
@@ -746,7 +781,11 @@ button {
 
   .footer-inner {
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+  }
+
+  .footer-meta {
+    gap: 10px;
   }
 
 }
