@@ -25,14 +25,14 @@
     </picker>
     <view class="form-row">
       <text>出发地</text>
-      <input class="form-input" value="{{form.depart}}" data-key="depart" bindinput="onDepartInput" placeholder="例如：北京朝阳" />
+      <input class="form-input" value="{{form.depart}}" data-key="depart" bindinput="onDepartInput" maxlength="128" placeholder="例如：北京朝阳" />
     </view>
     <picker mode="selector" range="{{times}}" data-key="time" data-list="times" bindchange="setPicker">
       <view class="form-row"><text>集合时间</text><view class="row-value"><text>{{form.time}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
     </picker>
     <view class="form-row">
       <text>集合地点</text>
-      <input class="form-input" value="{{form.meetPlace}}" data-key="meetPlace" bindinput="onFormInput" placeholder="例如：朝阳大悦城停车场" />
+      <input class="form-input" value="{{form.meetPlace}}" data-key="meetPlace" bindinput="onFormInput" maxlength="255" placeholder="例如：朝阳大悦城停车场" />
     </view>
     <view class="form-row people-row">
       <text>总人数</text>

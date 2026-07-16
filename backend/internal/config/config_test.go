@@ -29,3 +29,20 @@ func TestValidateAcceptsHardenedProductionConfig(t *testing.T) {
 		t.Fatalf("unexpected validation error: %v", err)
 	}
 }
+
+func TestValidateRejectsUnknownTimezone(t *testing.T) {
+	cfg := Config{AppEnv: "development", Timezone: "Mars/Olympus_Mons"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected invalid timezone to be rejected")
+	}
+}
+
+func TestLocationDefaultsToShanghai(t *testing.T) {
+	location, err := (Config{}).Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if location.String() != "Asia/Shanghai" {
+		t.Fatalf("unexpected default timezone %q", location.String())
+	}
+}

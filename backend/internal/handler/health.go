@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,18 +21,21 @@ func NewHealthHandler(cfg config.Config, db *sql.DB) *HealthHandler {
 
 func (h *HealthHandler) Show(c *gin.Context) {
 	dbStatus := "not_configured"
+	httpStatus := http.StatusOK
 	if h.db != nil {
 		dbStatus = "ok"
 		if err := h.db.Ping(); err != nil {
 			dbStatus = "error"
+			httpStatus = http.StatusServiceUnavailable
 		}
+	} else if h.cfg.AppEnv == "production" {
+		httpStatus = http.StatusServiceUnavailable
 	}
 
-	response.Success(c, gin.H{
+	response.SuccessWithStatus(c, httpStatus, gin.H{
 		"app":       h.cfg.AppName,
 		"env":       h.cfg.AppEnv,
 		"database":  dbStatus,
 		"timestamp": time.Now().Format(time.RFC3339),
 	})
 }
-

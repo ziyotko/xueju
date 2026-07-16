@@ -42,6 +42,7 @@
     <!-- <view class="risk-tip">{{contentRiskMessage}}</view> -->
     <view class="input-bar">
       <input
+        maxlength="1000"
         value="{{inputValue}}"
         bindinput="onInput"
         bindconfirm="onConfirm"

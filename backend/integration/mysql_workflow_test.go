@@ -124,6 +124,25 @@ func TestMySQLJoinWorkflowAndRemovedVisibility(t *testing.T) {
 		t.Fatalf("expired event status=%s", eventStatus)
 	}
 
+	sameDayEventID := insertEvent(t, db, creatorID)
+	t.Cleanup(func() {
+		_, _ = db.Exec(`DELETE FROM event_members WHERE event_id=?`, sameDayEventID)
+		_, _ = db.Exec(`DELETE FROM ski_events WHERE id=?`, sameDayEventID)
+	})
+	if _, err := db.Exec(`UPDATE ski_events SET start_time=DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id=?`, sameDayEventID); err != nil {
+		t.Fatal(err)
+	}
+	status, body = call(t, engine, http.MethodGet, "/api/events?page=1&pageSize=50", "", nil)
+	if status != http.StatusOK {
+		t.Fatalf("same-day reconciliation failed: %d %s", status, body)
+	}
+	if err := db.QueryRow(`SELECT status FROM ski_events WHERE id=?`, sameDayEventID).Scan(&eventStatus); err != nil {
+		t.Fatal(err)
+	}
+	if eventStatus != "recruiting" {
+		t.Fatalf("same-day event was finished at departure time: %s", eventStatus)
+	}
+
 	status, body = call(t, engine, http.MethodPost, "/api/reports", applicantToken, map[string]interface{}{"targetType": "app", "targetId": 0, "reason": "产品建议", "content": "希望增加更多雪场"})
 	if status != http.StatusOK {
 		t.Fatalf("app feedback failed: %d %s", status, body)

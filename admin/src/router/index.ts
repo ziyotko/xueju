@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from "vue-router"
-import DashboardView from "../views/DashboardView.vue"
-import AdminListView from "../views/AdminListView.vue"
-import LoginView from "../views/LoginView.vue"
-import ModerationView from "../views/ModerationView.vue"
+
+const DashboardView = () => import("../views/DashboardView.vue")
+const AdminListView = () => import("../views/AdminListView.vue")
+const LoginView = () => import("../views/LoginView.vue")
+const ModerationView = () => import("../views/ModerationView.vue")
 
 const router = createRouter({
   history: createWebHistory(),

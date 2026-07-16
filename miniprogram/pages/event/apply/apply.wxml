@@ -30,7 +30,7 @@
 
     <view class="form-row">
       <view class="label">出发区域</view>
-      <input class="field-input" value="{{departArea}}" data-key="departArea" bindinput="onInput" placeholder="例如：北京朝阳" />
+      <input class="field-input" value="{{departArea}}" data-key="departArea" bindinput="onInput" maxlength="128" placeholder="例如：北京朝阳" />
     </view>
 
     <view class="form-row">

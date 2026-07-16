@@ -2,6 +2,7 @@
 Thumbs.db
 
 .runtime/
+.tmp/
 .gocache-codex/
 .gocache/
 .build/

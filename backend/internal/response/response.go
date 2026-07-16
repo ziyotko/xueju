@@ -28,7 +28,11 @@ type Body struct {
 }
 
 func Success(c *gin.Context, data interface{}) {
-	c.JSON(http.StatusOK, Body{
+	SuccessWithStatus(c, http.StatusOK, data)
+}
+
+func SuccessWithStatus(c *gin.Context, httpStatus int, data interface{}) {
+	c.JSON(httpStatus, Body{
 		Code:    CodeSuccess,
 		Message: "success",
 		Data:    data,

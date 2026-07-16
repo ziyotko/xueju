@@ -10,11 +10,11 @@
   <view class="form-card card">
     <view class="form-row">
       <view class="label">昵称</view>
-      <input class="field-input" value="{{nickname}}" data-key="nickname" bindinput="onInput" />
+      <input class="field-input" value="{{nickname}}" data-key="nickname" bindinput="onInput" maxlength="64" />
     </view>
     <view class="form-row">
       <view class="label">城市</view>
-      <input class="field-input" value="{{city}}" data-key="city" bindinput="onInput" />
+      <input class="field-input" value="{{city}}" data-key="city" bindinput="onInput" maxlength="64" />
     </view>
     <view class="form-row">
       <view class="label">滑雪水平</view>

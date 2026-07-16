@@ -29,6 +29,18 @@ func TestHealthWithoutDatabase(t *testing.T) {
 	}
 }
 
+func TestProductionHealthRequiresDatabase(t *testing.T) {
+	engine := New(config.Config{AppName: "xueju-api", AppEnv: "production", JWTSecret: "test"}, nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+
+	engine.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", recorder.Code)
+	}
+}
+
 func TestBusinessEndpointRequiresDatabase(t *testing.T) {
 	engine := New(config.Config{AppName: "xueju-api", AppEnv: "test", JWTSecret: "test"}, nil)
 	recorder := httptest.NewRecorder()

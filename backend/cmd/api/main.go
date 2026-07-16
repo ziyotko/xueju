@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"xueju/backend/internal/config"
 	"xueju/backend/internal/database"
@@ -13,9 +14,17 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("configuration validation failed: %v", err)
 	}
-
-	db, err := database.Open(cfg.MySQLDSN)
+	location, err := cfg.Location()
 	if err != nil {
+		log.Fatalf("timezone configuration failed: %v", err)
+	}
+	time.Local = location
+
+	db, err := database.Open(cfg.MySQLDSN, cfg.Timezone)
+	if err != nil {
+		if cfg.AppEnv == "production" {
+			log.Fatalf("mysql connection failed: %v", err)
+		}
 		log.Printf("mysql connection skipped: %v", err)
 	}
 	if db != nil {

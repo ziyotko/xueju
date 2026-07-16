@@ -97,14 +97,33 @@ npm run build
 
 需要演示数据时，可仅在开发库执行 `backend/scripts/seed-dev.sql`，它会创建 5 个用户和 10 条未来行程；生产迁移只初始化基础雪场字典。
 
-## 生产部署
+## 生产部署（不依赖 Docker）
 
-- 复制 `backend/.env.example` 的变量到密钥管理系统，不要提交真实密钥。
-- 生产环境会拒绝默认 JWT、默认后台账号、非 HTTPS 公网地址、未开启微信内容安全或未配置 S3 兼容对象存储的配置。
-- `docker compose up --build -d` 可启动 MySQL、API 和管理后台；公网 TLS 应在负载均衡或反向代理层终止。
-- 小程序正式版把同一 HTTPS 域名配置为 request/download 合法域名，并通过 `extConfig.apiBaseUrl` 指向其 `/api` 路径。
-- 使用 `scripts/backup-mysql.ps1` 创建数据库备份，并由系统计划任务上传到异地存储；上线前必须实际验证一次恢复流程。
-- 使用 `scripts/restore-mysql.ps1 -BackupFile <path>` 在隔离数据库执行恢复演练，脚本要求输入 `RESTORE` 二次确认。
-- `/api/health` 用于存活和数据库就绪检查，所有请求响应携带 `X-Request-ID`，服务端输出结构化请求日志。
+1. 准备 MySQL 8 数据库，将 `backend/.env.example` 中的变量写入主机环境或密钥管理系统。不要提交真实密钥；`APP_TIMEZONE` 保持为 `Asia/Shanghai`。
+2. 编译并启动 API：
+
+   ```bash
+   cd backend
+   CGO_ENABLED=0 go build -trimpath -o xueju-api ./cmd/api
+   APP_ENV=production ./xueju-api
+   ```
+
+   生产环境数据库连接失败时进程会直接退出；`/api/health` 只有在数据库可用时才返回 HTTP 200。
+3. 构建管理端：
+
+   ```bash
+   cd admin
+   npm ci
+   npm run build
+   ```
+
+   将 `admin/dist` 发布到静态 Web 服务，并把同域 `/api` 与 `/uploads` 转发到 API 服务。若管理端和 API 使用不同域名，需要额外配置受限 CORS；推荐保持同域。
+4. 小程序正式版把 HTTPS 域名配置为 request/download 合法域名，并通过 `extConfig.apiBaseUrl` 指向其 `/api` 路径。
+5. 生产环境仍会拒绝默认 JWT、默认后台账号、非 HTTPS 公网地址、未开启微信内容安全或未配置 S3 兼容对象存储的配置。
+6. 使用 `scripts/backup-mysql.ps1` 创建数据库备份，并由系统计划任务上传到异地存储；上线前必须在隔离数据库验证一次恢复流程。
+
+开发环境也可以使用 `scripts/start-backend.sh`、`scripts/start-admin.sh`；Windows PowerShell 使用同名 `.ps1` 脚本。Docker 文件仅作为可选部署参考，不是运行本工程的前置条件。
+
+所有请求响应携带 `X-Request-ID`，服务端输出结构化请求日志。
 
 媒体上传默认处于 `pending`。将微信媒体审核回调配置为 `POST /api/callbacks/wechat/media?token=<WECHAT_MEDIA_CALLBACK_TOKEN>`，审核通过后系统自动公开；运营人员也可在“媒体审核”中人工批准或拒绝。只有 `approved` 文件可以通过公开地址访问。

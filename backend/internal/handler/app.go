@@ -179,6 +179,29 @@ func (h *AppHandler) UpdateMe(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid profile")
 		return
 	}
+	if (req.Nickname != nil && !textWithin(*req.Nickname, 64)) ||
+		(req.AvatarURL != nil && !textWithin(*req.AvatarURL, 255)) ||
+		(req.Bio != nil && !textWithin(*req.Bio, 500)) ||
+		(req.City != nil && !textWithin(*req.City, 64)) ||
+		(req.SkiType != nil && !textWithin(*req.SkiType, 32)) ||
+		(req.SkiLevel != nil && !textWithin(*req.SkiLevel, 32)) ||
+		(req.StyleTags != nil && !textListWithin(*req.StyleTags, 20, 32)) ||
+		(req.FavoriteResorts != nil && !textListWithin(*req.FavoriteResorts, 20, 128)) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "profile field is too long")
+		return
+	}
+	if req.Gender != nil && (*req.Gender < 0 || *req.Gender > 2) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid gender")
+		return
+	}
+	if req.SkiType != nil && *req.SkiType != "" && !stringIn(*req.SkiType, "snowboard", "ski", "both") {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid skiType")
+		return
+	}
+	if req.SkiLevel != nil && *req.SkiLevel != "" && !stringIn(*req.SkiLevel, "beginner", "primary", "intermediate", "advanced") {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid skiLevel")
+		return
+	}
 	if h.rejectLocalRisk(c, pointerString(req.Nickname), pointerString(req.Bio), pointerString(req.City), strings.Join(pointerSlice(req.StyleTags), " ")) {
 		return
 	}
@@ -342,8 +365,10 @@ func (h *AppHandler) Events(c *gin.Context) {
 	}
 	h.reconcileExpiredEvents()
 	page, pageSize := pagination(c)
-	where := []string{"e.deleted_at IS NULL", "e.status IN ('recruiting','full')", "(e.event_date>CURDATE() OR (e.event_date=CURDATE() AND (e.start_time IS NULL OR e.start_time>=NOW())))"}
-	args := []interface{}{}
+	now := time.Now().In(time.Local)
+	today := now.Format("2006-01-02")
+	where := []string{"e.deleted_at IS NULL", "e.status IN ('recruiting','full')", "(e.event_date>? OR (e.event_date=? AND (e.start_time IS NULL OR e.start_time>=?)))"}
+	args := []interface{}{today, today, now}
 
 	filters := map[string]string{
 		"city":           "e.depart_city",
@@ -856,6 +881,18 @@ func (h *AppHandler) ApplyEvent(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Message) == "" {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "message is required")
+		return
+	}
+	if !textWithin(req.DepartArea, 128) || !textWithin(req.Message, 500) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "application field is too long")
+		return
+	}
+	if req.SkiLevel != "" && !stringIn(req.SkiLevel, "beginner", "primary", "intermediate", "advanced") {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid skiLevel")
+		return
+	}
+	if req.SkiType != "" && !stringIn(req.SkiType, "snowboard", "ski", "both") {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid skiType")
 		return
 	}
 	if h.rejectLocalRisk(c, req.DepartArea, req.Message) {
@@ -1448,12 +1485,20 @@ func (h *AppHandler) SendMessage(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "content is required")
 		return
 	}
+	if !textWithin(req.Content, 1000) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "message is too long")
+		return
+	}
 	if h.rejectLocalRisk(c, req.Content) {
 		return
 	}
 	req.Content = h.cleanText(req.Content)
 	if req.MessageType == "" {
 		req.MessageType = "text"
+	}
+	if req.MessageType != "text" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported message type")
+		return
 	}
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldChatMessage, req.Content); err != nil {
 		h.contentError(c, err)
@@ -1491,6 +1536,14 @@ func (h *AppHandler) CreateReview(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.EventID == 0 || req.RevieweeID == 0 {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid review")
+		return
+	}
+	if req.Score < 1 || req.Score > 5 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "score must be between 1 and 5")
+		return
+	}
+	if !textWithin(req.Content, 500) || !textListWithin(req.PositiveTags, 12, 32) || !textListWithin(req.NegativeTags, 12, 32) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "review field is too long")
 		return
 	}
 	if h.rejectLocalRisk(c, req.Content, strings.Join(req.PositiveTags, " "), strings.Join(req.NegativeTags, " ")) {
@@ -1532,9 +1585,6 @@ func (h *AppHandler) CreateReview(c *gin.Context) {
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldReview, strings.Join(append(req.PositiveTags, req.NegativeTags...), " ")); err != nil {
 		h.contentError(c, err)
 		return
-	}
-	if req.Score < 1 || req.Score > 5 {
-		req.Score = 5
 	}
 	positive, _ := json.Marshal(req.PositiveTags)
 	negative, _ := json.Marshal(req.NegativeTags)
@@ -1597,6 +1647,10 @@ func (h *AppHandler) CreateReport(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.TargetType == "" || strings.TrimSpace(req.Content) == "" {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid report")
+		return
+	}
+	if !textWithin(req.Reason, 255) || !textWithin(req.Content, 2000) {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "report field is too long")
 		return
 	}
 	var exists int
@@ -1873,6 +1927,13 @@ type eventRequest struct {
 }
 
 func validateEventRequest(req eventRequest, currentMembers int) string {
+	if !textWithin(req.Title, 128) || !textWithin(req.ResortName, 128) ||
+		!textWithin(req.DepartCity, 64) || !textWithin(req.DepartArea, 128) ||
+		!textWithin(req.MeetPlace, 255) || !textWithin(req.CostDesc, 255) ||
+		!textWithin(req.Remark, 2000) || !textWithin(req.ImageURL, 500) ||
+		!textListWithin(req.PurposeTags, 12, 32) {
+		return "event field is too long"
+	}
 	if strings.TrimSpace(req.ResortName) == "" && req.ResortID <= 0 {
 		return "resort is required"
 	}
@@ -1918,9 +1979,9 @@ func (h *AppHandler) reconcileExpiredEvents() {
 	if h == nil || h.db == nil {
 		return
 	}
+	today := time.Now().In(time.Local).Format("2006-01-02")
 	_, _ = h.db.Exec(`UPDATE ski_events SET status='finished'
-		WHERE deleted_at IS NULL AND status IN ('recruiting','full')
-		AND (event_date<CURDATE() OR (event_date=CURDATE() AND start_time IS NOT NULL AND start_time<NOW()))`)
+		WHERE deleted_at IS NULL AND status IN ('recruiting','full') AND event_date<?`, today)
 }
 
 func stringIn(value string, allowed ...string) bool {
@@ -1930,6 +1991,22 @@ func stringIn(value string, allowed ...string) bool {
 		}
 	}
 	return false
+}
+
+func textWithin(value string, maxRunes int) bool {
+	return len([]rune(strings.TrimSpace(value))) <= maxRunes
+}
+
+func textListWithin(values []string, maxItems, maxRunes int) bool {
+	if len(values) > maxItems {
+		return false
+	}
+	for _, value := range values {
+		if !textWithin(value, maxRunes) {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *AppHandler) cleanEventRequest(req *eventRequest) {

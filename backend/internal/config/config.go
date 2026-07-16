@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -14,6 +15,7 @@ type Config struct {
 	AppName                string
 	AppEnv                 string
 	Port                   string
+	Timezone               string
 	MySQLDSN               string
 	JWTSecret              string
 	JWTExpiresHours        int
@@ -52,6 +54,7 @@ func Load() Config {
 		AppName:                getEnv("APP_NAME", "xueju-api"),
 		AppEnv:                 getEnv("APP_ENV", "development"),
 		Port:                   getEnv("APP_PORT", "8080"),
+		Timezone:               getEnv("APP_TIMEZONE", "Asia/Shanghai"),
 		MySQLDSN:               getEnv("MYSQL_DSN", ""),
 		JWTSecret:              getEnv("JWT_SECRET", "xueju-dev-secret"),
 		JWTExpiresHours:        getEnvAsInt("JWT_EXPIRES_HOURS", 168),
@@ -87,6 +90,9 @@ func Load() Config {
 // Validate rejects development fallbacks in production. This is intentionally
 // strict: a misconfigured process must fail before it can accept real traffic.
 func (c Config) Validate() error {
+	if _, err := c.Location(); err != nil {
+		return err
+	}
 	if c.AppEnv != "production" {
 		return nil
 	}
@@ -125,6 +131,18 @@ func (c Config) Validate() error {
 		return errors.New(fmt.Sprintf("invalid production configuration: %s", strings.Join(problems, "; ")))
 	}
 	return nil
+}
+
+func (c Config) Location() (*time.Location, error) {
+	name := strings.TrimSpace(c.Timezone)
+	if name == "" {
+		name = "Asia/Shanghai"
+	}
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid APP_TIMEZONE %q: %w", name, err)
+	}
+	return location, nil
 }
 
 func loadEnv(paths ...string) {
