@@ -53,6 +53,19 @@ func TestPublicTagsDoNotRequireDatabase(t *testing.T) {
 	}
 }
 
+func TestModerationEndpointsRequireAdminAuthentication(t *testing.T) {
+	engine := New(config.Config{AppName: "xueju-api", AppEnv: "test", JWTSecret: "test", UploadDir: t.TempDir()}, nil)
+	paths := []string{"/api/admin/moderation/summary", "/api/admin/uploads/1/preview"}
+	for _, path := range paths {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("%s expected 401, got %d", path, recorder.Code)
+		}
+	}
+}
+
 type responseBody struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`

@@ -182,6 +182,7 @@ Page({
     wx.setStorageSync(`xueju_user_detail_${creatorId}`, {
       id: creatorId,
       nickname: this.data.event.creatorName || this.data.event.host,
+      avatarUrl: this.data.event.creatorAvatarUrl || this.data.event.hostAvatarUrl || '',
       creditScore: 5
     })
     wx.navigateTo({ url: `/pages/user/detail/detail?id=${creatorId}` })

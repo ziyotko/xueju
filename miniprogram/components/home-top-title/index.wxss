@@ -1,5 +1,4 @@
 .home-title-bar {
-  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -12,6 +11,10 @@
   font-size: 17px;
   font-weight: 600;
   line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .home-title-bar__spacer {

@@ -1,5 +1,14 @@
 <view class="home-page">
-  <home-top-title title="发现行程" />
+  <view
+    class="home-page__navigation"
+    style="height: {{navigationTotalHeight}}px; padding-top: {{statusBarHeight}}px;"
+  >
+    <home-top-title
+      title="发现行程"
+      height="{{navigationContentHeight}}"
+      side-inset="{{navigationSideInset}}"
+    />
+  </view>
 
   <view class="home-page__section home-page__section--search">
     <city-search-bar city="{{city}}" placeholder="搜索雪场 / 日期 / 关键词" bind:citytap="goCity" bind:searchtap="goSearch" bind:notifytap="goNotifications" />

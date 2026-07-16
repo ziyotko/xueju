@@ -4,7 +4,12 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -14,15 +19,17 @@ import (
 	"xueju/backend/internal/compliance"
 	"xueju/backend/internal/config"
 	"xueju/backend/internal/response"
+	"xueju/backend/internal/storage"
 )
 
 type AdminHandler struct {
-	cfg config.Config
-	db  *sql.DB
+	cfg     config.Config
+	db      *sql.DB
+	storage storage.Store
 }
 
 func NewAdminHandler(cfg config.Config, db *sql.DB) *AdminHandler {
-	return &AdminHandler{cfg: cfg, db: db}
+	return &AdminHandler{cfg: cfg, db: db, storage: storage.New(cfg)}
 }
 
 func (h *AdminHandler) Login(c *gin.Context) {
@@ -31,13 +38,13 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid login payload")
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "登录信息格式不正确")
 		return
 	}
 	usernameOK := subtle.ConstantTimeCompare([]byte(req.Username), []byte(h.cfg.AdminUsername)) == 1
 	passwordOK := subtle.ConstantTimeCompare([]byte(req.Password), []byte(h.cfg.AdminPassword)) == 1
 	if !usernameOK || !passwordOK {
-		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid username or password")
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "账号或密码错误")
 		return
 	}
 	expiresAt := time.Now().Add(time.Duration(h.cfg.JWTExpiresHours) * time.Hour)
@@ -84,13 +91,35 @@ func (h *AdminHandler) ContentReviews(c *gin.Context) {
 		return
 	}
 	page, pageSize := pagination(c)
-	union := `
-		SELECT CONCAT('user:',id) item_id, nickname target, '用户资料' item_type, CONCAT(nickname, ' · ', bio) summary, status, updated_at FROM users WHERE deleted_at IS NULL
-		UNION ALL SELECT CONCAT('event:',id), title, '滑雪局', CONCAT(resort_name, ' · ', COALESCE(remark,'')), status, updated_at FROM ski_events WHERE deleted_at IS NULL
-		UNION ALL SELECT CONCAT('application:',r.id), u.nickname, '加入申请', r.message, r.status, r.updated_at FROM join_requests r JOIN users u ON u.id=r.applicant_id
-		UNION ALL SELECT CONCAT('message:',m.id), u.nickname, '群聊消息', m.content, m.status, m.created_at FROM chat_messages m JOIN users u ON u.id=m.sender_id
-		UNION ALL SELECT CONCAT('review:',r.id), u.nickname, '滑后评价', r.content, r.status, r.created_at FROM reviews r JOIN users u ON u.id=r.reviewer_id
-		UNION ALL SELECT CONCAT('report:',id), CONCAT(target_type,' #',target_id), '举报内容', CONCAT(reason, ' · ', content), status, updated_at FROM reports`
+	selects := map[string]string{
+		"user":        `SELECT CONCAT('user:',id) item_id, nickname target, '用户资料' item_type, CONCAT(nickname, ' · ', bio) summary, status, updated_at FROM users WHERE deleted_at IS NULL`,
+		"event":       `SELECT CONCAT('event:',id) item_id, title target, '滑雪局' item_type, CONCAT(resort_name, ' · ', COALESCE(remark,'')) summary, status, updated_at FROM ski_events WHERE deleted_at IS NULL`,
+		"application": `SELECT CONCAT('application:',r.id) item_id, u.nickname target, '加入申请' item_type, r.message summary, r.status status, r.updated_at updated_at FROM join_requests r JOIN users u ON u.id=r.applicant_id`,
+		"message":     `SELECT CONCAT('message:',m.id) item_id, u.nickname target, '群聊消息' item_type, m.content summary, m.status status, m.created_at updated_at FROM chat_messages m JOIN users u ON u.id=m.sender_id`,
+		"review":      `SELECT CONCAT('review:',r.id) item_id, u.nickname target, '滑后评价' item_type, r.content summary, r.status status, r.created_at updated_at FROM reviews r JOIN users u ON u.id=r.reviewer_id`,
+		"report":      `SELECT CONCAT('report:',id) item_id, CONCAT(target_type,' #',target_id) target, '举报内容' item_type, CONCAT(reason, ' · ', content) summary, status, updated_at FROM reports`,
+	}
+	itemTypes := []string{"user", "event", "application", "review"}
+	if strings.TrimSpace(c.Query("scope")) != "content" {
+		itemTypes = append(itemTypes, "message", "report")
+	}
+	if itemType := strings.TrimSpace(c.Query("itemType")); itemType != "" && selects[itemType] != "" {
+		allowed := false
+		for _, candidate := range itemTypes {
+			if candidate == itemType {
+				allowed = true
+				break
+			}
+		}
+		if allowed {
+			itemTypes = []string{itemType}
+		}
+	}
+	unionParts := make([]string, 0, len(itemTypes))
+	for _, itemType := range itemTypes {
+		unionParts = append(unionParts, selects[itemType])
+	}
+	union := strings.Join(unionParts, " UNION ALL ")
 	keyword := strings.TrimSpace(c.Query("keyword"))
 	status := strings.TrimSpace(c.Query("status"))
 	where := []string{"1=1"}
@@ -104,6 +133,11 @@ func (h *AdminHandler) ContentReviews(c *gin.Context) {
 		where = append(where, "status=?")
 		args = append(args, status)
 	}
+	if reviewState := strings.TrimSpace(c.Query("reviewState")); reviewState == "active" {
+		where = append(where, "status NOT IN ('disabled','removed','rejected','hidden','resolved')")
+	} else if reviewState == "handled" {
+		where = append(where, "status IN ('disabled','removed','rejected','hidden','resolved')")
+	}
 	query := `SELECT item_id, target, item_type, summary, status, updated_at FROM (` + union + `) content WHERE ` + strings.Join(where, " AND ") + ` ORDER BY updated_at DESC LIMIT ?, ?`
 	rows, err := h.db.Query(query, append(args, (page-1)*pageSize, pageSize)...)
 	if err != nil {
@@ -115,12 +149,55 @@ func (h *AdminHandler) ContentReviews(c *gin.Context) {
 	for rows.Next() {
 		var id, target, itemType, summary, rowStatus string
 		var updated time.Time
-		_ = rows.Scan(&id, &target, &itemType, &summary, &rowStatus, &updated)
-		list = append(list, adminRow(id, target, itemType, summary, riskByStatus(rowStatus), rowStatus, updated, nil))
+		if err := rows.Scan(&id, &target, &itemType, &summary, &rowStatus, &updated); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		prefix := strings.SplitN(id, ":", 2)[0]
+		list = append(list, adminRow(id, target, itemType, summary, riskByStatus(rowStatus), rowStatus, updated, gin.H{"itemType": prefix}))
 	}
 	var total int64
 	_ = h.db.QueryRow(`SELECT COUNT(*) FROM (`+union+`) content WHERE `+strings.Join(where, " AND "), args...).Scan(&total)
 	response.Success(c, pageData(list, page, pageSize, total))
+}
+
+func (h *AdminHandler) ModerationSummary(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	contentUnion := `SELECT status FROM users WHERE deleted_at IS NULL
+		UNION ALL SELECT status FROM ski_events WHERE deleted_at IS NULL
+		UNION ALL SELECT status FROM join_requests
+		UNION ALL SELECT status FROM reviews`
+	var contentTotal, contentActive, contentHandled int64
+	var messageTotal, messageNormal, messageHidden int64
+	var mediaTotal, mediaPending, mediaApproved, mediaRejected int64
+	queries := []struct {
+		query string
+		dest  *int64
+	}{
+		{`SELECT COUNT(*) FROM (` + contentUnion + `) moderation_content`, &contentTotal},
+		{`SELECT COUNT(*) FROM (` + contentUnion + `) moderation_content WHERE status NOT IN ('disabled','removed','rejected','hidden','resolved')`, &contentActive},
+		{`SELECT COUNT(*) FROM (` + contentUnion + `) moderation_content WHERE status IN ('disabled','removed','rejected','hidden','resolved')`, &contentHandled},
+		{`SELECT COUNT(*) FROM chat_messages`, &messageTotal},
+		{`SELECT COUNT(*) FROM chat_messages WHERE status='normal'`, &messageNormal},
+		{`SELECT COUNT(*) FROM chat_messages WHERE status='hidden'`, &messageHidden},
+		{`SELECT COUNT(*) FROM media_uploads`, &mediaTotal},
+		{`SELECT COUNT(*) FROM media_uploads WHERE status='pending'`, &mediaPending},
+		{`SELECT COUNT(*) FROM media_uploads WHERE status='approved'`, &mediaApproved},
+		{`SELECT COUNT(*) FROM media_uploads WHERE status='rejected'`, &mediaRejected},
+	}
+	for _, item := range queries {
+		if err := h.db.QueryRow(item.query).Scan(item.dest); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+	}
+	response.Success(c, gin.H{
+		"content":  gin.H{"total": contentTotal, "active": contentActive, "handled": contentHandled},
+		"messages": gin.H{"total": messageTotal, "normal": messageNormal, "hidden": messageHidden},
+		"media":    gin.H{"total": mediaTotal, "pending": mediaPending, "approved": mediaApproved, "rejected": mediaRejected},
+	})
 }
 
 func (h *AdminHandler) Users(c *gin.Context) {
@@ -129,7 +206,7 @@ func (h *AdminHandler) Users(c *gin.Context) {
 	}
 	page, pageSize := pagination(c)
 	where, args := adminWhere(c, []string{"deleted_at IS NULL"}, "nickname", "city")
-	rows, err := h.db.Query(`SELECT id, nickname, city, ski_type, ski_level, credit_score, status, updated_at FROM users WHERE `+where+` ORDER BY id DESC LIMIT ?, ?`, append(args, (page-1)*pageSize, pageSize)...)
+	rows, err := h.db.Query(`SELECT id, nickname, city, ski_type, ski_level, credit_score, verification_status, verification_method, phone_masked, verified_at, status, updated_at FROM users WHERE `+where+` ORDER BY id DESC LIMIT ?, ?`, append(args, (page-1)*pageSize, pageSize)...)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -138,13 +215,93 @@ func (h *AdminHandler) Users(c *gin.Context) {
 	list := []gin.H{}
 	for rows.Next() {
 		var id int64
-		var nickname, city, skiType, skiLevel, status string
+		var nickname, city, skiType, skiLevel, verificationStatus, verificationMethod, phoneMasked, status string
 		var credit float64
+		var verifiedAt sql.NullTime
 		var updated time.Time
-		_ = rows.Scan(&id, &nickname, &city, &skiType, &skiLevel, &credit, &status, &updated)
-		list = append(list, adminRow(id, nickname, "用户", city+" "+skiType+" "+skiLevel, riskByStatus(status), status, updated, gin.H{"creditScore": credit}))
+		_ = rows.Scan(&id, &nickname, &city, &skiType, &skiLevel, &credit, &verificationStatus, &verificationMethod, &phoneMasked, &verifiedAt, &status, &updated)
+		list = append(list, adminRow(id, nickname, "用户", city+" "+skiType+" "+skiLevel, riskByStatus(status), status, updated, gin.H{"creditScore": credit, "verificationStatus": verificationStatus, "verificationMethod": verificationMethod, "phoneMasked": phoneMasked, "verifiedAt": nullableAdminTime(verifiedAt)}))
 	}
 	response.Success(c, pageData(list, page, pageSize, h.count("users", where, args)))
+}
+
+func (h *AdminHandler) UserVerifications(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	rows, err := h.db.Query(`SELECT id, status, method, provider, provider_reference, phone_masked, verified_at, revoked_at, revoked_by, revoke_reason, created_at FROM user_verifications WHERE user_id=? ORDER BY id DESC`, c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+	list := []gin.H{}
+	for rows.Next() {
+		var id int64
+		var status, method, provider, reference, masked, revokedBy, reason string
+		var verifiedAt, revokedAt sql.NullTime
+		var created time.Time
+		if err := rows.Scan(&id, &status, &method, &provider, &reference, &masked, &verifiedAt, &revokedAt, &revokedBy, &reason, &created); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		list = append(list, gin.H{"id": id, "status": status, "method": method, "provider": provider, "providerReference": reference, "phoneMasked": masked, "verifiedAt": nullableAdminTime(verifiedAt), "revokedAt": nullableAdminTime(revokedAt), "revokedBy": revokedBy, "revokeReason": reason, "createdAt": created})
+	}
+	response.Success(c, list)
+}
+
+func (h *AdminHandler) changePhoneVerificationStatus(c *gin.Context, id, action, reason string) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "必须填写原因")
+		return
+	}
+	userID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "用户编号无效")
+		return
+	}
+	newStatus := "reverify_required"
+	verificationStatus := "reverify_required"
+	if action == "revoke_phone_verification" {
+		newStatus = "revoked"
+		verificationStatus = "revoked"
+	}
+	tx, err := h.db.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer tx.Rollback()
+	var oldStatus string
+	if err := tx.QueryRow(`SELECT verification_status FROM users WHERE id=? FOR UPDATE`, userID).Scan(&oldStatus); err != nil {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "用户不存在")
+		return
+	}
+	if _, err := tx.Exec(`UPDATE users SET verification_status=? WHERE id=?`, newStatus, userID); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	adminUsername, _ := c.Get("adminUsername")
+	adminID := fmt.Sprint(adminUsername)
+	if action == "revoke_phone_verification" {
+		_, err = tx.Exec(`UPDATE user_verifications SET status=?, active_phone_hash=NULL, revoked_at=NOW(), revoked_by=?, revoke_reason=? WHERE user_id=? AND active_phone_hash IS NOT NULL`, verificationStatus, adminID, reason, userID)
+	} else {
+		_, err = tx.Exec(`UPDATE user_verifications SET status=? WHERE user_id=? AND active_phone_hash IS NOT NULL`, verificationStatus, userID)
+	}
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if _, err := tx.Exec(`INSERT INTO verification_audit_logs (user_id, action, operator_type, operator_id, old_status, new_status, ip_address, user_agent, remark) VALUES (?, ?, 'admin', ?, ?, ?, ?, ?, ?)`, userID, action, adminID, oldStatus, newStatus, c.ClientIP(), limitedUserAgent(c), reason); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"status": newStatus})
 }
 
 func (h *AdminHandler) Events(c *gin.Context) {
@@ -227,7 +384,45 @@ func (h *AdminHandler) Reports(c *gin.Context) {
 }
 
 func (h *AdminHandler) Messages(c *gin.Context) {
-	h.ContentReviews(c)
+	if !h.requireDB(c) {
+		return
+	}
+	page, pageSize := pagination(c)
+	where := []string{"1=1"}
+	args := []interface{}{}
+	if status := strings.TrimSpace(c.Query("status")); status != "" && status != "all" {
+		where = append(where, "m.status=?")
+		args = append(args, status)
+	}
+	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+		where = append(where, "(m.content LIKE ? OR u.nickname LIKE ? OR e.title LIKE ?)")
+		like := "%" + keyword + "%"
+		args = append(args, like, like, like)
+	}
+	from := ` FROM chat_messages m JOIN users u ON u.id=m.sender_id JOIN ski_events e ON e.id=m.event_id WHERE ` + strings.Join(where, " AND ")
+	rows, err := h.db.Query(`SELECT m.id, m.event_id, m.sender_id, u.nickname, e.title, m.message_type, m.content, m.status, m.created_at`+from+` ORDER BY m.created_at DESC LIMIT ?, ?`, append(args, (page-1)*pageSize, pageSize)...)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+	list := []gin.H{}
+	for rows.Next() {
+		var id, eventID, senderID int64
+		var nickname, eventTitle, messageType, content, status string
+		var created time.Time
+		if err := rows.Scan(&id, &eventID, &senderID, &nickname, &eventTitle, &messageType, &content, &status, &created); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		list = append(list, adminRow(id, nickname, "群聊消息", eventTitle+" · "+content, riskByStatus(status), status, created, gin.H{"eventId": eventID, "eventTitle": eventTitle, "senderId": senderID, "messageType": messageType}))
+	}
+	var total int64
+	if err := h.db.QueryRow(`SELECT COUNT(*)`+from, args...).Scan(&total); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	response.Success(c, pageData(list, page, pageSize, total))
 }
 
 func (h *AdminHandler) Reviews(c *gin.Context) {
@@ -288,9 +483,120 @@ func (h *AdminHandler) Uploads(c *gin.Context) {
 		if err := rows.Scan(&id, &userID, &kind, &publicURL, &mimeType, &status, &result, &updated); err != nil {
 			continue
 		}
-		list = append(list, adminRow(id, kind+" #"+strconv.FormatInt(id, 10), "媒体审核", publicURL, riskByStatus(status), status, updated, gin.H{"userId": userID, "mimeType": mimeType, "result": result}))
+		list = append(list, adminRow(id, kind+" #"+strconv.FormatInt(id, 10), "媒体审核", publicURL, riskByStatus(status), status, updated, gin.H{"userId": userID, "kind": kind, "mimeType": mimeType, "result": result, "previewPath": "/admin/uploads/" + strconv.FormatInt(id, 10) + "/preview"}))
 	}
 	response.Success(c, pageData(list, page, pageSize, h.count("media_uploads", where, args)))
+}
+
+func (h *AdminHandler) UploadPreview(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "媒体编号无效")
+		return
+	}
+	var path, storedMime string
+	if err := h.db.QueryRow(`SELECT path, mime_type FROM media_uploads WHERE id=?`, id).Scan(&path, &storedMime); err != nil {
+		if err == sql.ErrNoRows {
+			response.Error(c, http.StatusNotFound, response.CodeNotFound, "媒体记录不存在")
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	data, detectedMime, err := h.storage.Get(c.Request.Context(), path)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "媒体文件不存在")
+		return
+	}
+	if detectedMime == "" {
+		detectedMime = storedMime
+	}
+	if detectedMime == "" {
+		detectedMime = http.DetectContentType(data)
+	}
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Content-Disposition", "inline")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(http.StatusOK, detectedMime, data)
+}
+
+func (h *AdminHandler) UploadResortImage(c *gin.Context) {
+	if !h.requireDB(c) {
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "请选择雪场图片")
+		return
+	}
+	if file.Size > 5*1024*1024 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片不能超过 5MB")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "仅支持 JPG、JPEG、PNG 图片")
+		return
+	}
+	source, err := file.Open()
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法读取图片")
+		return
+	}
+	defer source.Close()
+	header := make([]byte, 512)
+	n, _ := source.Read(header)
+	mimeType := http.DetectContentType(header[:n])
+	validMime := (ext == ".png" && mimeType == "image/png") || ((ext == ".jpg" || ext == ".jpeg") && mimeType == "image/jpeg")
+	if !validMime {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片扩展名与内容不匹配")
+		return
+	}
+	if _, err := source.Seek(0, 0); err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法检查图片")
+		return
+	}
+	imageConfig, _, err := image.DecodeConfig(source)
+	if err != nil || imageConfig.Width < 1 || imageConfig.Height < 1 || imageConfig.Width > 12000 || imageConfig.Height > 12000 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片内容无效")
+		return
+	}
+	if _, err := source.Seek(0, 0); err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法读取图片")
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(source, 5*1024*1024+1))
+	if err != nil || len(data) > 5*1024*1024 {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法读取图片")
+		return
+	}
+
+	filename := fmt.Sprintf("resort-%d%s", time.Now().UnixNano(), ext)
+	storageKey := filepath.ToSlash(filepath.Join("resorts", filename))
+	if err := h.storage.Put(c.Request.Context(), storageKey, data, mimeType); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	path := "/uploads/resorts/" + filename
+	publicURL := h.cfg.PublicBaseURL + path
+	if h.cfg.PublicBaseURL == "" {
+		scheme := "http"
+		if c.Request.TLS != nil {
+			scheme = "https"
+		}
+		publicURL = fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, path)
+	}
+	result, err := h.db.Exec(`INSERT INTO media_uploads (user_id, kind, path, public_url, mime_type, status, review_result) VALUES (0, 'resorts', ?, ?, ?, 'approved', '管理员上传')`, storageKey, publicURL, mimeType)
+	if err != nil {
+		_ = h.storage.Delete(c.Request.Context(), storageKey)
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
+	uploadID, _ := result.LastInsertId()
+	response.Success(c, gin.H{"id": uploadID, "url": publicURL})
 }
 
 func (h *AdminHandler) AuditLogs(c *gin.Context) {
@@ -298,7 +604,23 @@ func (h *AdminHandler) AuditLogs(c *gin.Context) {
 		return
 	}
 	page, pageSize := pagination(c)
-	rows, err := h.db.Query(`SELECT id, admin_username, resource, target_id, action, before_status, after_status, detail, created_at FROM admin_action_logs ORDER BY created_at DESC LIMIT ?, ?`, (page-1)*pageSize, pageSize)
+	where := []string{"1=1"}
+	args := []interface{}{}
+	if resource := strings.TrimSpace(c.Query("resource")); resource != "" {
+		where = append(where, "resource=?")
+		args = append(args, resource)
+	}
+	if targetID := strings.TrimSpace(c.Query("targetId")); targetID != "" {
+		where = append(where, "target_id=?")
+		args = append(args, targetID)
+	}
+	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+		where = append(where, "(admin_username LIKE ? OR action LIKE ? OR detail LIKE ?)")
+		like := "%" + keyword + "%"
+		args = append(args, like, like, like)
+	}
+	whereSQL := strings.Join(where, " AND ")
+	rows, err := h.db.Query(`SELECT id, admin_username, resource, target_id, action, before_status, after_status, detail, created_at FROM admin_action_logs WHERE `+whereSQL+` ORDER BY created_at DESC LIMIT ?, ?`, append(args, (page-1)*pageSize, pageSize)...)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -312,10 +634,15 @@ func (h *AdminHandler) AuditLogs(c *gin.Context) {
 		if err := rows.Scan(&id, &username, &resource, &targetID, &action, &beforeStatus, &afterStatus, &detail, &created); err != nil {
 			continue
 		}
-		list = append(list, adminRow(id, username, resource+" #"+targetID, action+" · "+detail, "低", afterStatus, created, gin.H{"beforeStatus": beforeStatus}))
+		list = append(list, adminRow(id, username, resource+" #"+targetID, action+" · "+detail, "低", afterStatus, created, gin.H{
+			"resource": resource, "targetId": targetID, "action": action, "beforeStatus": beforeStatus, "afterStatus": afterStatus, "detail": detail,
+		}))
 	}
 	var total int64
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM admin_action_logs`).Scan(&total)
+	if err := h.db.QueryRow(`SELECT COUNT(*) FROM admin_action_logs WHERE `+whereSQL, args...).Scan(&total); err != nil {
+		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+		return
+	}
 	response.Success(c, pageData(list, page, pageSize, total))
 }
 
@@ -356,12 +683,25 @@ func (h *AdminHandler) SaveDict(c *gin.Context) {
 		Status   string `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.City) == "" {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "name and city are required")
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "雪场名称和城市不能为空")
 		return
 	}
 	req.Status = defaultString(req.Status, "normal")
 	id := c.Param("id")
 	if id == "" {
+		if strings.TrimSpace(req.ImageURL) == "" {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "请上传雪场图片")
+			return
+		}
+		var imageCount int64
+		if err := h.db.QueryRow(`SELECT COUNT(*) FROM media_uploads WHERE kind='resorts' AND public_url=? AND status='approved'`, req.ImageURL).Scan(&imageCount); err != nil {
+			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
+			return
+		}
+		if imageCount == 0 {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "请先上传有效的雪场图片")
+			return
+		}
 		result, err := h.db.Exec(`INSERT INTO ski_resorts (name, city, province, image_url, sort, status) VALUES (?, ?, ?, ?, ?, ?)`, req.Name, req.City, req.Province, req.ImageURL, req.Sort, req.Status)
 		if err != nil {
 			response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
@@ -378,7 +718,7 @@ func (h *AdminHandler) SaveDict(c *gin.Context) {
 		return
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		response.Error(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "雪场记录不存在")
 		return
 	}
 	h.logAdminAction(c, "dicts", id, "update_dict", "", req.Status, req.Name)
@@ -398,11 +738,33 @@ func (h *AdminHandler) Action(c *gin.Context) {
 		Reason       string `json:"reason"`
 		LinkedAction bool   `json:"linkedAction"`
 	}
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "操作参数格式不正确")
+		return
+	}
+	if resource != "content-reviews" && strings.Contains(id, ":") {
+		parts := strings.SplitN(id, ":", 2)
+		expectedPrefix := map[string]string{"users": "user", "events": "event", "applications": "application", "messages": "message", "reviews": "review", "reports": "report", "dicts": "dict", "uploads": "upload"}[resource]
+		if len(parts) != 2 || parts[0] != expectedPrefix {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "操作对象无效")
+			return
+		}
+		id = parts[1]
+	}
+	if resource != "content-reviews" {
+		if _, err := strconv.ParseInt(id, 10, 64); err != nil {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "操作对象无效")
+			return
+		}
+	}
+	if resource == "users" && (req.Action == "require_phone_reverification" || req.Action == "revoke_phone_verification") {
+		h.changePhoneVerificationStatus(c, id, req.Action, req.Reason)
+		return
+	}
 	if resource == "content-reviews" {
 		parts := strings.SplitN(id, ":", 2)
 		if len(parts) != 2 {
-			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid content review target")
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "巡检对象无效")
 			return
 		}
 		id = parts[1]
@@ -420,9 +782,32 @@ func (h *AdminHandler) Action(c *gin.Context) {
 		case "report":
 			resource, req.Action, req.Status = "reports", "resolve_report", "resolved"
 		default:
-			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported content review target")
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "不支持处置该类内容")
 			return
 		}
+	}
+	allowedActions := map[string]map[string]bool{
+		"users":        {"disable_user": true, "enable_user": true},
+		"events":       {"delist_event": true, "restore_event": true},
+		"applications": {"reject_application": true},
+		"messages":     {"hide_message": true, "restore_message": true},
+		"reviews":      {"hide_review": true, "restore_review": true},
+		"reports":      {"resolve_report": true},
+		"dicts":        {"disable_dict": true, "enable_dict": true},
+		"uploads":      {"approve_upload": true, "reject_upload": true},
+	}
+	if !allowedActions[resource][req.Action] {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "不支持该操作")
+		return
+	}
+	reasonRequired := map[string]bool{
+		"disable_user": true, "delist_event": true, "reject_application": true,
+		"hide_message": true, "hide_review": true, "reject_upload": true,
+		"disable_dict": true,
+	}
+	if reasonRequired[req.Action] && strings.TrimSpace(defaultString(req.Reason, req.Result)) == "" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "必须填写操作原因")
+		return
 	}
 	beforeStatus := ""
 	statusTable := map[string]string{"users": "users", "events": "ski_events", "applications": "join_requests", "messages": "chat_messages", "reviews": "reviews", "reports": "reports", "dicts": "ski_resorts", "uploads": "media_uploads"}
@@ -434,14 +819,14 @@ func (h *AdminHandler) Action(c *gin.Context) {
 	args := []interface{}{}
 	switch resource {
 	case "users":
-		status := defaultString(req.Status, "disabled")
+		status := "disabled"
 		if req.Action == "enable_user" {
 			status = "normal"
 		}
 		query = `UPDATE users SET status=? WHERE id=?`
 		args = []interface{}{status, id}
 	case "events":
-		status := defaultString(req.Status, "removed")
+		status := "removed"
 		if req.Action == "restore_event" {
 			status = "recruiting"
 		}
@@ -451,36 +836,38 @@ func (h *AdminHandler) Action(c *gin.Context) {
 		query = `UPDATE join_requests SET status='rejected', reject_reason=? WHERE id=?`
 		args = []interface{}{defaultString(req.Reason, "运营审核未通过"), id}
 	case "messages":
-		status := defaultString(req.Status, "hidden")
+		status := "hidden"
+		if req.Action == "restore_message" {
+			status = "normal"
+		}
 		query = `UPDATE chat_messages SET status=? WHERE id=?`
 		args = []interface{}{status, id}
 	case "reviews":
-		status := defaultString(req.Status, "hidden")
+		status := "hidden"
 		if req.Action == "restore_review" {
 			status = "normal"
 		}
 		query = `UPDATE reviews SET status=? WHERE id=?`
 		args = []interface{}{status, id}
 	case "reports":
-		status := defaultString(req.Status, "resolved")
-		query = `UPDATE reports SET status=?, result=? WHERE id=?`
-		args = []interface{}{status, defaultString(req.Result, req.Reason), id}
+		query = `UPDATE reports SET status='resolved', result=? WHERE id=?`
+		args = []interface{}{defaultString(req.Result, req.Reason), id}
 	case "dicts":
-		status := defaultString(req.Status, "disabled")
+		status := "disabled"
 		if req.Action == "enable_dict" {
 			status = "normal"
 		}
 		query = `UPDATE ski_resorts SET status=? WHERE id=?`
 		args = []interface{}{status, id}
 	case "uploads":
-		status := defaultString(req.Status, "approved")
+		status := "approved"
 		if req.Action == "reject_upload" {
 			status = "rejected"
 		}
 		query = `UPDATE media_uploads SET status=?, review_result=? WHERE id=?`
 		args = []interface{}{status, defaultString(req.Result, req.Reason), id}
 	default:
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported resource")
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "不支持该业务模块")
 		return
 	}
 
@@ -490,7 +877,11 @@ func (h *AdminHandler) Action(c *gin.Context) {
 		return
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		response.Error(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		if beforeStatus != "" {
+			response.Success(c, gin.H{"status": beforeStatus, "unchanged": true})
+			return
+		}
+		response.Error(c, http.StatusNotFound, response.CodeNotFound, "记录不存在")
 		return
 	}
 	if resource == "reviews" {
@@ -520,10 +911,8 @@ func (h *AdminHandler) Action(c *gin.Context) {
 			}
 		}
 	}
-	afterStatus := req.Status
-	if afterStatus == "" {
-		_ = h.db.QueryRow(`SELECT status FROM `+statusTable[resource]+` WHERE id=?`, id).Scan(&afterStatus)
-	}
+	afterStatus := ""
+	_ = h.db.QueryRow(`SELECT status FROM `+statusTable[resource]+` WHERE id=?`, id).Scan(&afterStatus)
 	h.logAdminAction(c, resource, id, req.Action, beforeStatus, afterStatus, defaultString(req.Result, req.Reason))
 	response.Success(c, gin.H{"status": "accepted"})
 }
@@ -556,7 +945,7 @@ func (h *AdminHandler) requireDB(c *gin.Context) bool {
 	if h.db != nil {
 		return true
 	}
-	response.Error(c, http.StatusServiceUnavailable, response.CodeServerError, "database is not configured")
+	response.Error(c, http.StatusServiceUnavailable, response.CodeServerError, "数据库未配置")
 	return false
 }
 
@@ -593,7 +982,7 @@ func adminRow(id interface{}, target, typ, summary, risk, status string, updated
 		"summary":   summary,
 		"risk":      risk,
 		"status":    status,
-		"updatedAt": updated.Format("01-02 15:04"),
+		"updatedAt": updated.Format(time.RFC3339),
 	}
 	for key, value := range extra {
 		row[key] = value
@@ -606,6 +995,13 @@ func firstRune(value string) string {
 		return string(r)
 	}
 	return "-"
+}
+
+func nullableAdminTime(value sql.NullTime) interface{} {
+	if value.Valid {
+		return value.Time
+	}
+	return nil
 }
 
 func riskByStatus(status string) string {

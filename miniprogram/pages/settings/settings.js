@@ -7,6 +7,7 @@ Page({
   goProfileEdit() { wx.navigateTo({ url: '/pages/profile/edit/edit' }) },
   goFavorites() { wx.navigateTo({ url: '/pages/favorites/favorites' }) },
   goNotifications() { wx.navigateTo({ url: '/pages/notifications/notifications' }) },
+  goPhoneVerification() { wx.navigateTo({ url: '/pages/auth/phone-verification/index' }) },
   goReport() { wx.navigateTo({ url: '/pages/report/report?targetType=app&targetId=0' }) },
 
   async showPrivacy() {

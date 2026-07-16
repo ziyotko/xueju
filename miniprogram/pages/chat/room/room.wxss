@@ -127,6 +127,17 @@
   box-shadow: 0 -12rpx 36rpx rgba(55, 72, 128, 0.06);
 }
 
+.readonly-bar {
+  flex-shrink: 0;
+  padding: 24rpx 28rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  border-top: 2rpx solid #eef1f7;
+  background: #ffffff;
+  color: #7b8499;
+  font-size: 22rpx;
+  text-align: center;
+}
+
 .risk-tip {
   padding: 12rpx 28rpx 0;
   color: #9aa3b7;

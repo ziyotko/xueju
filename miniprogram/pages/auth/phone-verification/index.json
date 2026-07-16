@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "手机号认证",
+  "usingComponents": {
+    "app-icon": "/components/app-icon/index"
+  }
+}

@@ -187,7 +187,7 @@ Page({
     if (key === 'traffic') update['form.trafficType'] = value === '高铁同行' ? 'high_speed_rail' : value === '公共交通' ? 'bus' : value === '同行交通待定' ? 'other' : 'self_drive'
     this.setData(update)
   },
-  increasePeople() { this.setData({ 'form.people': Math.min(this.data.form.people + 1, 12) }) },
+  increasePeople() { this.setData({ 'form.people': Math.min(this.data.form.people + 1, 20) }) },
   decreasePeople() { this.setData({ 'form.people': Math.max(this.data.form.people - 1, 1) }) },
   onPeopleChange(event) {
     this.setData({ 'form.people': event.detail.value })
@@ -269,7 +269,7 @@ Page({
 	  wx.showToast({ title: this.data.editMode ? '修改已保存' : '发布成功', icon: 'success' })
 	  setTimeout(() => wx.redirectTo({ url: `/pages/event/detail/detail?id=${event.id}` }), 500)
     } catch (error) {
-	  wx.showToast({ title: this.data.editMode ? '保存失败，请稍后重试' : '发布失败，请稍后重试', icon: 'none' })
+	  wx.showToast({ title: (error && error.message) || (this.data.editMode ? '保存失败，请稍后重试' : '发布失败，请稍后重试'), icon: 'none' })
 	} finally {
 	  this.setData({ submitting: false })
     }

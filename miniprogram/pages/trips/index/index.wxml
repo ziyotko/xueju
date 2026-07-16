@@ -18,7 +18,10 @@
         <view class="trip-meta">{{item.date}} {{item.time ? item.time + '集合' : ''}}</view>
         <view class="trip-meta">{{item.depart}} · {{item.traffic}}</view>
         <view class="avatars">
-          <view wx:for="{{item.memberInitials}}" wx:key="*this" wx:for-item="avatarItem" wx:for-index="avatarIndex" class="avatar {{avatarIndex > 0 ? 'overlap' : ''}}">{{avatarItem}}</view>
+          <view wx:for="{{item.displayAvatars}}" wx:key="id" wx:for-item="avatarItem" wx:for-index="avatarIndex" class="avatar {{avatarIndex > 0 ? 'overlap' : ''}}">
+            <image wx:if="{{avatarItem.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{avatarItem.avatarUrl}}" />
+            <text wx:else>{{avatarItem.initial}}</text>
+          </view>
           <text class="joined">{{item.summaryText}}</text>
         </view>
       </view>

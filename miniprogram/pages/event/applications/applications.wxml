@@ -7,7 +7,10 @@
   <view class="request-card card" wx:for="{{requests}}" wx:key="id">
     <view class="between">
       <view class="row" data-id="{{item.applicantId || item.id}}" bindtap="goUser">
-        <view class="avatar">{{item.initial}}</view>
+        <view class="avatar">
+          <image wx:if="{{item.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{item.avatarUrl}}" />
+          <text wx:else>{{item.initial}}</text>
+        </view>
         <view class="person-main">
           <view class="person-name">{{item.name}} <text>{{item.credit}}</text></view>
           <view class="person-meta">{{item.skiType}} · {{item.level}} · {{item.departArea}}</view>

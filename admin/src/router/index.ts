@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router"
 import DashboardView from "../views/DashboardView.vue"
 import AdminListView from "../views/AdminListView.vue"
 import LoginView from "../views/LoginView.vue"
+import ModerationView from "../views/ModerationView.vue"
 
 const router = createRouter({
   history: createWebHistory(),
@@ -39,29 +40,15 @@ const router = createRouter({
       props: { resource: "reviews", title: "评价管理", actionText: "隐藏评价" }
     },
     {
-      path: "/messages",
-      name: "messages",
-      component: AdminListView,
-      props: { resource: "messages", title: "消息管理", actionText: "隐藏消息" }
-    },
-    {
       path: "/dicts",
       name: "dicts",
       component: AdminListView,
       props: { resource: "dicts", title: "字典管理", actionText: "停用雪场" }
 	},
-	{
-	  path: "/content-reviews",
-	  name: "content-reviews",
-	  component: AdminListView,
-	  props: { resource: "content-reviews", title: "内容审核", actionText: "隐藏内容" }
-	},
-	{
-	  path: "/uploads",
-	  name: "uploads",
-	  component: AdminListView,
-	  props: { resource: "uploads", title: "媒体审核", actionText: "通过审核" }
-	},
+	{ path: "/moderation", name: "moderation", component: ModerationView },
+	{ path: "/content-reviews", redirect: (to) => ({ path: "/moderation", query: { ...to.query, tab: "content" } }) },
+	{ path: "/messages", redirect: (to) => ({ path: "/moderation", query: { ...to.query, tab: "messages" } }) },
+	{ path: "/uploads", redirect: (to) => ({ path: "/moderation", query: { ...to.query, tab: "media" } }) },
 	{
 	  path: "/audit-logs",
 	  name: "audit-logs",

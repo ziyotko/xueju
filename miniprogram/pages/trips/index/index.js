@@ -8,10 +8,11 @@ const tabs = [
 ]
 
 function statusBadge(item, active) {
+  if (item.status === 'cancelled') return '已取消'
   if (active === 0) return item.status === 'finished' ? '已结束' : '我发起的'
   if (active === 1) return '已加入'
   if (active === 2) return '待确认'
-  if (active === 3) return '已结束'
+  if (active === 3) return item.status === 'cancelled' ? '已取消' : '已结束'
   return item.badge || ''
 }
 
@@ -23,8 +24,11 @@ function tripView(item, active) {
     ...item,
     badge: statusBadge(item, active),
     memberInitials: initials.slice(0, 4),
+    displayAvatars: item.memberAvatars && item.memberAvatars.length
+      ? item.memberAvatars.slice(0, 4)
+      : initials.slice(0, 4).map((initial, index) => ({ id: `fallback-${index}`, initial, avatarUrl: '' })),
     summaryText: active === 2 ? '有待确认申请，请进入详情处理' : `${item.joinedText || ''}，${item.spotsText || ''}`,
-    canReview: active === 3
+    canReview: active === 3 && item.status === 'finished'
   }
 }
 

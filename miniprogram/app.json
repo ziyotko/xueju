@@ -18,6 +18,7 @@
     "pages/review/create/create",
     "pages/profile/profile",
     "pages/profile/edit/edit",
+    "pages/auth/phone-verification/index",
     "pages/user/detail/detail"
   ],
   "window": {

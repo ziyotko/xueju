@@ -7,6 +7,10 @@ function findEventById(events, id) {
 
 Page({
   data: {
+    statusBarHeight: 20,
+    navigationContentHeight: 44,
+    navigationTotalHeight: 64,
+    navigationSideInset: 56,
     city: '北京',
     events: [],
     allEvents: [],
@@ -28,15 +32,47 @@ Page({
   },
 
   onLoad(options) {
+    this.updateNavigationMetrics()
     if (options.city) this.setData({ city: decodeURIComponent(options.city) })
     this.loadEvents()
     this.loadHealth()
+  },
+
+  updateNavigationMetrics() {
+    let windowInfo = {}
+    let menu = {}
+    try {
+      windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
+    } catch (error) {}
+    try {
+      menu = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : {}
+    } catch (error) {}
+
+    const statusBarHeight = Math.max(Number(windowInfo.statusBarHeight || 0), 20)
+    const hasMenuMetrics = Number(menu.height) > 0 && Number(menu.top) >= statusBarHeight
+    const menuGap = hasMenuMetrics ? Math.max(Number(menu.top) - statusBarHeight, 4) : 6
+    const navigationContentHeight = hasMenuMetrics ? Number(menu.height) + menuGap * 2 : 44
+    const windowWidth = Number(windowInfo.windowWidth || windowInfo.screenWidth || 375)
+    const navigationSideInset = hasMenuMetrics
+      ? Math.max(windowWidth - Number(menu.left) + 8, 56)
+      : 56
+
+    this.setData({
+      statusBarHeight,
+      navigationContentHeight,
+      navigationTotalHeight: statusBarHeight + navigationContentHeight,
+      navigationSideInset
+    })
   },
 
   onShow() {
     const tabBar = this.getTabBar && this.getTabBar()
     if (tabBar) tabBar.setData({ active: 0 })
     this.loadEvents()
+  },
+
+  onResize() {
+    this.updateNavigationMetrics()
   },
 
   async loadEvents(params = {}) {

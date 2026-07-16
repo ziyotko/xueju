@@ -7,6 +7,7 @@ function mapReview(item) {
     id: item.id,
     name,
     initial: name.slice(0, 1),
+    avatarUrl: item.reviewerAvatarUrl || '',
     date: (item.createdAt || '').slice(0, 10) || item.date || '刚刚',
     credit: item.credit || `评分 ${item.score || 5}.0`,
     text: item.content || item.text || '',
@@ -32,6 +33,8 @@ Page({
       { value: '100%', label: '好评率' }
     ],
 	certifications: ['微信登录', '站内沟通'],
+	realNameVerified: false,
+	verificationStatus: 'unverified',
 	resorts: [],
 	styles: [],
     reviews: []
@@ -57,6 +60,9 @@ Page({
 		bio: profile.bio || '',
         styles: profile.styleTags && profile.styleTags.length ? profile.styleTags : this.data.styles,
         resorts: profile.favoriteResorts && profile.favoriteResorts.length ? profile.favoriteResorts : this.data.resorts,
+		realNameVerified: !!profile.realNameVerified,
+		verificationStatus: profile.verificationStatus || 'unverified',
+		certifications: profile.verificationStatus === 'verified' ? [`手机号认证 ${profile.phoneMasked || ''}`, '微信登录', '站内沟通'] : [profile.verificationStatus === 'reverify_required' ? '需要重新认证手机号' : profile.verificationStatus === 'revoked' ? '手机号认证已撤销' : '未完成手机号认证'],
         stats: [
           { value: profile.eventCount || 0, label: '发起局数' },
           { value: profile.joinCount || 0, label: '加入局数' },
@@ -83,5 +89,8 @@ Page({
   goSettings() { wx.navigateTo({ url: '/pages/settings/settings' }) },
   goFavorites() { wx.navigateTo({ url: '/pages/favorites/favorites' }) },
   goNotifications() { wx.navigateTo({ url: '/pages/notifications/notifications' }) },
+  showRealNameInfo() {
+	wx.navigateTo({ url: '/pages/auth/phone-verification/index' })
+  },
   showAllReviews() { wx.showToast({ title: this.data.reviewCount ? '已展示全部评价' : '暂无收到的评价', icon: 'none' }) }
 })

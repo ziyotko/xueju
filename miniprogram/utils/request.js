@@ -2,6 +2,54 @@ const { CONTENT_RISK_CODE, CONTENT_RISK_MESSAGE } = require("../constants/compli
 
 const PUBLIC_PATHS = ["/health", "/auth/wechat-login", "/events", "/dict/resorts", "/dict/tags", "/dict/cities"]
 let loginTask = null
+let verificationRedirecting = false
+const PHONE_VERIFICATION_CODES = [
+  "PHONE_VERIFICATION_REQUIRED",
+  "PHONE_REVERIFICATION_REQUIRED",
+  "PHONE_VERIFICATION_REVOKED"
+]
+
+function normalizeMediaUrls(value, apiBaseUrl, fieldName = "") {
+  if (Array.isArray(value)) return value.map((item) => normalizeMediaUrls(item, apiBaseUrl, fieldName))
+  if (value && typeof value === "object") {
+    Object.keys(value).forEach((key) => { value[key] = normalizeMediaUrls(value[key], apiBaseUrl, key) })
+    return value
+  }
+  if (typeof value !== "string") return value
+  const isMediaField = /(avatarUrl|imageUrl)$/i.test(fieldName) || /^(image|url|publicUrl)$/i.test(fieldName)
+  if (!isMediaField) return value
+  if (/^(http:\/\/tmp\/|wxfile:\/\/)/i.test(value)) return ""
+  const apiOrigin = String(apiBaseUrl || "").replace(/\/api\/?$/, "")
+  if (!apiOrigin) return value
+  if (value.startsWith("/uploads/")) return `${apiOrigin}${value}`
+  const match = value.match(/^https?:\/\/([^/]+)(\/uploads\/.*)$/i)
+  if (!match) return value
+  const host = match[1].split(":")[0].toLowerCase()
+  const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" ||
+    /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  return isLocalHost ? `${apiOrigin}${match[2]}` : value
+}
+
+function currentPageUrl() {
+  const pages = typeof getCurrentPages === "function" ? getCurrentPages() : []
+  const page = pages[pages.length - 1]
+  if (!page || !page.route) return "/pages/index/index"
+  const query = Object.keys(page.options || {}).map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(page.options[key])}`).join("&")
+  return `/${page.route}${query ? `?${query}` : ""}`
+}
+
+function redirectToPhoneVerification() {
+  if (verificationRedirecting) return
+  const current = currentPageUrl()
+  if (current.startsWith("/pages/auth/phone-verification/index")) return
+  verificationRedirecting = true
+  wx.setStorageSync("xueju_verification_return_url", current)
+  wx.navigateTo({
+    url: "/pages/auth/phone-verification/index",
+    fail: () => wx.redirectTo({ url: "/pages/auth/phone-verification/index" }),
+    complete: () => setTimeout(() => { verificationRedirecting = false }, 1500)
+  })
+}
 
 function isPublicRequest(url = "") {
   if (url === "/events" || url.startsWith("/events?") || /^\/events\/\d+$/.test(url)) return true
@@ -88,7 +136,7 @@ function request(options) {
       success(res) {
         const body = res.data || {}
         if (res.statusCode >= 200 && res.statusCode < 300 && body.code === 0) {
-          resolve(body.data)
+          resolve(normalizeMediaUrls(body.data, app.globalData.apiBaseUrl))
           return
         }
 
@@ -104,8 +152,14 @@ function request(options) {
         const message = body.code === CONTENT_RISK_CODE
           ? CONTENT_RISK_MESSAGE
           : body.message || "请求失败，请稍后再试"
-        wx.showToast({ title: message, icon: "none" })
-        reject(new Error(message))
+        if (PHONE_VERIFICATION_CODES.includes(body.code)) {
+          redirectToPhoneVerification()
+        } else {
+          wx.showToast({ title: message, icon: "none" })
+        }
+        const error = new Error(message)
+        error.code = body.code
+        reject(error)
       },
       fail(err) {
         wx.showToast({ title: "网络连接失败", icon: "none" })
@@ -131,7 +185,7 @@ function upload(url, filePath, name = "file", formData = {}, retried = false) {
           body = JSON.parse(res.data || "{}")
         } catch (error) {}
         if (res.statusCode >= 200 && res.statusCode < 300 && body.code === 0) {
-          resolve(body.data)
+          resolve(normalizeMediaUrls(body.data, app.globalData.apiBaseUrl))
           return
         }
 

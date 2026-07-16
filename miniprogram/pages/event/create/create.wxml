@@ -37,7 +37,7 @@
     <view class="form-row people-row">
       <text>总人数</text>
       <view class="people-control">
-        <t-stepper value="{{form.people}}" min="{{1}}" max="{{12}}" theme="filled" size="small" disable-input bind:change="onPeopleChange" />
+        <t-stepper value="{{form.people}}" min="{{1}}" max="{{20}}" theme="filled" size="small" disable-input bind:change="onPeopleChange" />
       </view>
       <text class="people-hint">包含发起人</text>
     </view>

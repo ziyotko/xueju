@@ -1,6 +1,9 @@
 <view class="review-page safe-bottom">
   <view class="target-card card">
-    <view class="avatar big">{{selectedTarget ? selectedTarget.initial : '雪'}}</view>
+    <view class="avatar big">
+      <image wx:if="{{selectedTarget && selectedTarget.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{selectedTarget.avatarUrl}}" />
+      <text wx:else>{{selectedTarget ? selectedTarget.initial : '雪'}}</text>
+    </view>
     <view>
       <view class="target-name">{{selectedTarget ? selectedTarget.name : '选择评价对象'}}</view>
       <view class="target-meta">{{targetMeta}}</view>
@@ -17,7 +20,10 @@
         data-id="{{item.id}}"
         bindtap="selectTarget"
       >
-        <view class="avatar mini">{{item.initial}}</view>
+        <view class="avatar mini">
+          <image wx:if="{{item.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{item.avatarUrl}}" />
+          <text wx:else>{{item.initial}}</text>
+        </view>
         <view>
           <view class="chip-name">{{item.name}}</view>
           <view class="chip-meta">{{item.meta}}</view>

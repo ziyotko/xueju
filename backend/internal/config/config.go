@@ -11,52 +11,76 @@ import (
 )
 
 type Config struct {
-	AppName            string
-	AppEnv             string
-	Port               string
-	MySQLDSN           string
-	JWTSecret          string
-	JWTExpiresHours    int
-	WechatAppID        string
-	WechatAppSecret    string
-	ContentSecurity    bool
-	MediaCallbackToken string
-	AdminUsername      string
-	AdminPassword      string
-	PublicBaseURL      string
-	UploadDir          string
-	StorageDriver      string
-	S3Endpoint         string
-	S3Bucket           string
-	S3Region           string
-	S3AccessKey        string
-	S3SecretKey        string
+	AppName                string
+	AppEnv                 string
+	Port                   string
+	MySQLDSN               string
+	JWTSecret              string
+	JWTExpiresHours        int
+	WechatAppID            string
+	WechatAppSecret        string
+	ContentSecurity        bool
+	MediaCallbackToken     string
+	AdminUsername          string
+	AdminPassword          string
+	PublicBaseURL          string
+	UploadDir              string
+	StorageDriver          string
+	S3Endpoint             string
+	S3Bucket               string
+	S3Region               string
+	S3AccessKey            string
+	S3SecretKey            string
+	AliyunAccessKeyID      string
+	AliyunAccessKeySecret  string
+	AliyunSmsSignName      string
+	AliyunSmsTemplateCode  string
+	AliyunSmsSchemeName    string
+	PhoneEncryptionKey     string
+	PhoneHashSecret        string
+	SmsCodeExpireSeconds   int
+	SmsSendIntervalSeconds int
+	SmsDailyLimitPerPhone  int
+	SmsDailyLimitPerUser   int
+	SmsHourlyLimitPerIP    int
 }
 
 func Load() Config {
 	loadEnv(".env", "../.env", "../../.env")
 
 	return Config{
-		AppName:            getEnv("APP_NAME", "xueju-api"),
-		AppEnv:             getEnv("APP_ENV", "development"),
-		Port:               getEnv("APP_PORT", "8080"),
-		MySQLDSN:           getEnv("MYSQL_DSN", ""),
-		JWTSecret:          getEnv("JWT_SECRET", "xueju-dev-secret"),
-		JWTExpiresHours:    getEnvAsInt("JWT_EXPIRES_HOURS", 168),
-		WechatAppID:        getEnv("WECHAT_APP_ID", ""),
-		WechatAppSecret:    getEnv("WECHAT_APP_SECRET", ""),
-		ContentSecurity:    getEnvAsBool("WECHAT_CONTENT_SECURITY_ENABLED", false),
-		MediaCallbackToken: getEnv("WECHAT_MEDIA_CALLBACK_TOKEN", ""),
-		AdminUsername:      getEnv("ADMIN_USERNAME", "admin"),
-		AdminPassword:      getEnv("ADMIN_PASSWORD", "xueju-admin"),
-		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
-		UploadDir:          getEnv("UPLOAD_DIR", "uploads"),
-		StorageDriver:      getEnv("STORAGE_DRIVER", "local"),
-		S3Endpoint:         strings.TrimRight(getEnv("S3_ENDPOINT", ""), "/"),
-		S3Bucket:           getEnv("S3_BUCKET", ""),
-		S3Region:           getEnv("S3_REGION", "us-east-1"),
-		S3AccessKey:        getEnv("S3_ACCESS_KEY", ""),
-		S3SecretKey:        getEnv("S3_SECRET_KEY", ""),
+		AppName:                getEnv("APP_NAME", "xueju-api"),
+		AppEnv:                 getEnv("APP_ENV", "development"),
+		Port:                   getEnv("APP_PORT", "8080"),
+		MySQLDSN:               getEnv("MYSQL_DSN", ""),
+		JWTSecret:              getEnv("JWT_SECRET", "xueju-dev-secret"),
+		JWTExpiresHours:        getEnvAsInt("JWT_EXPIRES_HOURS", 168),
+		WechatAppID:            getEnv("WECHAT_APP_ID", ""),
+		WechatAppSecret:        getEnv("WECHAT_APP_SECRET", ""),
+		ContentSecurity:        getEnvAsBool("WECHAT_CONTENT_SECURITY_ENABLED", false),
+		MediaCallbackToken:     getEnv("WECHAT_MEDIA_CALLBACK_TOKEN", ""),
+		AdminUsername:          getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:          getEnv("ADMIN_PASSWORD", "xueju-admin"),
+		PublicBaseURL:          strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
+		UploadDir:              getEnv("UPLOAD_DIR", "uploads"),
+		StorageDriver:          getEnv("STORAGE_DRIVER", "local"),
+		S3Endpoint:             strings.TrimRight(getEnv("S3_ENDPOINT", ""), "/"),
+		S3Bucket:               getEnv("S3_BUCKET", ""),
+		S3Region:               getEnv("S3_REGION", "us-east-1"),
+		S3AccessKey:            getEnv("S3_ACCESS_KEY", ""),
+		S3SecretKey:            getEnv("S3_SECRET_KEY", ""),
+		AliyunAccessKeyID:      getEnv("ALIYUN_ACCESS_KEY_ID", ""),
+		AliyunAccessKeySecret:  getEnv("ALIYUN_ACCESS_KEY_SECRET", ""),
+		AliyunSmsSignName:      getEnv("ALIYUN_SMS_VERIFY_SIGN_NAME", ""),
+		AliyunSmsTemplateCode:  getEnv("ALIYUN_SMS_VERIFY_TEMPLATE_CODE", ""),
+		AliyunSmsSchemeName:    getEnv("ALIYUN_SMS_VERIFY_SCHEME_NAME", ""),
+		PhoneEncryptionKey:     getEnv("PHONE_ENCRYPTION_KEY", ""),
+		PhoneHashSecret:        getEnv("PHONE_HASH_SECRET", ""),
+		SmsCodeExpireSeconds:   getEnvAsInt("SMS_CODE_EXPIRE_SECONDS", 300),
+		SmsSendIntervalSeconds: getEnvAsInt("SMS_SEND_INTERVAL_SECONDS", 60),
+		SmsDailyLimitPerPhone:  getEnvAsInt("SMS_DAILY_LIMIT_PER_PHONE", 10),
+		SmsDailyLimitPerUser:   getEnvAsInt("SMS_DAILY_LIMIT_PER_USER", 10),
+		SmsHourlyLimitPerIP:    getEnvAsInt("SMS_HOURLY_LIMIT_PER_IP", 30),
 	}
 }
 
@@ -90,6 +114,12 @@ func (c Config) Validate() error {
 	}
 	if c.StorageDriver != "s3" || !strings.HasPrefix(c.S3Endpoint, "https://") || c.S3Bucket == "" || c.S3AccessKey == "" || c.S3SecretKey == "" {
 		problems = append(problems, "production requires STORAGE_DRIVER=s3 and complete S3-compatible storage settings")
+	}
+	if c.AliyunAccessKeyID == "" || c.AliyunAccessKeySecret == "" || c.AliyunSmsSignName == "" || c.AliyunSmsTemplateCode == "" {
+		problems = append(problems, "Aliyun SMS verification credentials, sign name and template code are required")
+	}
+	if len(c.PhoneEncryptionKey) < 32 || len(c.PhoneHashSecret) < 32 {
+		problems = append(problems, "PHONE_ENCRYPTION_KEY and PHONE_HASH_SECRET must each be at least 32 characters")
 	}
 	if len(problems) > 0 {
 		return errors.New(fmt.Sprintf("invalid production configuration: %s", strings.Join(problems, "; ")))

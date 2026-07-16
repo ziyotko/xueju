@@ -2,7 +2,7 @@
   <view class="chat-header trip-summary-bar">
     <view class="chat-head-copy">
       <view class="chat-title">{{event.resort}}</view>
-      <view class="chat-subtitle">已成局 · {{event.date}} {{event.time}} 出发</view>
+      <view class="chat-subtitle">{{readOnly ? (event.status === 'cancelled' ? '活动已取消 · 群聊历史只读' : '活动已结束 · 群聊历史只读') : ('已成局 · ' + event.date + ' ' + event.time + ' 出发')}}</view>
     </view>
   </view>
 
@@ -15,24 +15,30 @@
     show-scrollbar="false"
     bindtap="hideActionPanel"
   >
-    <view class="chat-notice">你已加入群聊，行程信息以群内同步为准</view>
+	<view class="chat-notice">{{readOnly ? '该活动群聊已归档，仅可查看历史消息' : '你已加入群聊，行程信息以群内同步为准'}}</view>
 	<view wx:if="{{nextBeforeId}}" class="chat-notice" bindtap="loadOlder">{{loadingOlder ? '加载中...' : '加载更早消息'}}</view>
 
     <view class="message-list">
 	  <view id="msg-{{item.id}}" class="message-row {{item.side}}" wx:for="{{messages}}" wx:key="id" data-id="{{item.id}}" bindlongpress="reportMessage">
-        <view wx:if="{{item.side === 'left'}}" class="avatar small">{{item.initial}}</view>
+        <view wx:if="{{item.side === 'left'}}" class="avatar small">
+          <image wx:if="{{item.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{item.avatarUrl}}" />
+          <text wx:else>{{item.initial}}</text>
+        </view>
         <view class="bubble {{item.system ? 'system' : ''}}">
           <view class="sender" wx:if="{{item.side === 'left'}}">{{item.displayName}}</view>
           <view class="content">{{item.content}}</view>
         </view>
-        <view wx:if="{{item.side === 'right'}}" class="avatar small mine">我</view>
+        <view wx:if="{{item.side === 'right'}}" class="avatar small mine">
+          <image wx:if="{{item.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{item.avatarUrl}}" />
+          <text wx:else>我</text>
+        </view>
         <text class="time">{{item.time}}</text>
       </view>
     </view>
     <view class="chat-bottom-spacer"></view>
   </scroll-view>
 
-  <view class="input-area {{actionPanelVisible ? 'panel-open' : ''}}">
+  <view wx:if="{{!readOnly}}" class="input-area {{actionPanelVisible ? 'panel-open' : ''}}">
     <!-- <view class="risk-tip">{{contentRiskMessage}}</view> -->
     <view class="input-bar">
       <input
@@ -59,4 +65,5 @@
       </view>
     </view>
   </view>
+  <view wx:else class="readonly-bar">活动已结束或取消，群聊仅可查看历史消息</view>
 </view>

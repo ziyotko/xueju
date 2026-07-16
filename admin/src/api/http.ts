@@ -69,12 +69,47 @@ export async function getAdminPage(resource: AdminResource) {
   return unwrap(http.get<ApiBody<PageResult<Record<string, unknown>>>>(`/admin/${resource}`))
 }
 
-export async function getAdminPageWithParams(resource: AdminResource, params: Record<string, unknown>) {
-  return unwrap(http.get<ApiBody<PageResult<Record<string, unknown>>>>(`/admin/${resource}`, { params }))
+export async function getAdminPageWithParams<T = Record<string, unknown>>(resource: AdminResource, params: Record<string, unknown>) {
+  return unwrap(http.get<ApiBody<PageResult<T>>>(`/admin/${resource}`, { params }))
+}
+
+export async function uploadResortImage(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  return unwrap(http.post<ApiBody<{ id: number; url: string }>>("/admin/uploads/resort-image", formData))
 }
 
 export async function runAdminAction(resource: AdminResource, id: string | number, payload: AdminActionPayload) {
   return unwrap(http.post<ApiBody<{ status: string }>>(`/admin/${resource}/${id}/actions`, payload))
+}
+
+export async function getUserVerifications(id: string | number) {
+  return unwrap(http.get<ApiBody<Array<Record<string, unknown>>>>(`/admin/users/${id}/verifications`))
+}
+
+export async function getModerationSummary() {
+  return unwrap(http.get<ApiBody<ModerationSummary>>("/admin/moderation/summary"))
+}
+
+export async function getModerationPage(tab: ModerationTab, params: Record<string, unknown>) {
+  if (tab === "content") {
+    return getAdminPageWithParams<ModerationRow>("content-reviews", { ...params, scope: "content" })
+  }
+  return getAdminPageWithParams<ModerationRow>(tab === "messages" ? "messages" : "uploads", params)
+}
+
+export async function getUploadPreview(id: string | number) {
+  const response = await http.get<Blob>(`/admin/uploads/${id}/preview`, { responseType: "blob" })
+  return response.data
+}
+
+export async function getAuditHistory(resource: string, targetId: string | number) {
+  return getAdminPageWithParams<ModerationAuditRow>("audit-logs", {
+    resource,
+    targetId,
+    page: 1,
+    pageSize: 20
+  })
 }
 
 export interface HealthInfo {
@@ -85,6 +120,44 @@ export interface HealthInfo {
 }
 
 export type AdminResource = "users" | "events" | "applications" | "messages" | "reviews" | "reports" | "content-reviews" | "dicts" | "uploads" | "audit-logs"
+
+export type ModerationTab = "content" | "messages" | "media"
+
+export interface ModerationRow {
+  id: string
+  initial: string
+  target: string
+  type: string
+  summary: string
+  risk: string
+  status: string
+  updatedAt: string
+  itemType?: "user" | "event" | "application" | "review"
+  eventId?: number
+  eventTitle?: string
+  senderId?: number
+  messageType?: string
+  userId?: number
+  kind?: string
+  mimeType?: string
+  result?: string
+  previewPath?: string
+}
+
+export interface ModerationAuditRow extends ModerationRow {
+  beforeStatus?: string
+  afterStatus?: string
+  resource?: string
+  targetId?: string
+  action?: string
+  detail?: string
+}
+
+export interface ModerationSummary {
+  content: { total: number; active: number; handled: number }
+  messages: { total: number; normal: number; hidden: number }
+  media: { total: number; pending: number; approved: number; rejected: number }
+}
 
 export interface AdminActionPayload {
   action: string

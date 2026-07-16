@@ -8,16 +8,21 @@ import (
 )
 
 const (
-	CodeSuccess      = 0
-	CodeBadRequest   = 400
-	CodeUnauthorized = 401
-	CodeNotFound     = 404
-	CodeServerError  = 500
-	CodeContentRisk  = 40010
+	CodeSuccess                     = 0
+	CodeBadRequest                  = 400
+	CodeUnauthorized                = 401
+	CodeForbidden                   = 403
+	CodeNotFound                    = 404
+	CodeServerError                 = 500
+	CodeContentRisk                 = 40010
+	CodePhoneVerificationRequired   = "PHONE_VERIFICATION_REQUIRED"
+	CodePhoneReverificationRequired = "PHONE_REVERIFICATION_REQUIRED"
+	CodePhoneVerificationRevoked    = "PHONE_VERIFICATION_REVOKED"
+	CodePhoneAlreadyVerified        = "PHONE_ALREADY_VERIFIED"
 )
 
 type Body struct {
-	Code    int         `json:"code"`
+	Code    interface{} `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
@@ -30,10 +35,10 @@ func Success(c *gin.Context, data interface{}) {
 	})
 }
 
-func Error(c *gin.Context, httpStatus int, code int, message string) {
+func Error(c *gin.Context, httpStatus int, code interface{}, message string) {
 	if httpStatus >= http.StatusInternalServerError {
 		requestID, _ := c.Get("requestID")
-		log.Printf("internal request error: requestId=%v status=%d code=%d error=%q", requestID, httpStatus, code, message)
+		log.Printf("internal request error: requestId=%v status=%d code=%v error=%q", requestID, httpStatus, code, message)
 		message = "服务暂时不可用，请稍后重试"
 	}
 	c.JSON(httpStatus, Body{

@@ -1,17 +1,5 @@
 <template>
-  <div>
-    <section class="page-hero compact">
-      <div>
-        <p class="eyebrow">{{ meta.kicker }}</p>
-        <h1>{{ title }}</h1>
-        <p class="hero-copy">{{ meta.description }}</p>
-      </div>
-      <div class="hero-actions">
-        <el-button v-if="resource === 'dicts'" type="primary" @click="openDictDialog()">新增雪场</el-button>
-        <el-button :loading="loading" @click="loadData">刷新</el-button>
-      </div>
-    </section>
-
+  <div class="admin-list-page">
     <section class="toolbar panel">
       <el-input v-model="keyword" class="search-input" clearable placeholder="搜索对象、内容或状态" @keyup.enter="loadData" />
       <el-select v-model="status" class="status-select" placeholder="状态">
@@ -23,29 +11,36 @@
     <section class="table-panel panel">
       <div class="panel-head">
         <div>
-          <h2>{{ meta.tableTitle }}</h2>
-          <p>共 {{ page.total }} 条记录，当前展示第 {{ page.page }} 页。</p>
+          <h2>{{ title }}</h2>
+          <p>{{ meta.description }} · 当前第 {{ page.page }} 页</p>
         </div>
-        <el-tag effect="plain">{{ page.total }} 条</el-tag>
+        <div class="panel-head-actions">
+          <el-tag effect="plain">{{ page.total }} 条</el-tag>
+          <el-button v-if="resource === 'dicts'" type="primary" @click="openDictDialog()">新增雪场</el-button>
+          <el-button :loading="loading" @click="loadData">刷新</el-button>
+        </div>
       </div>
 
-      <el-table :data="page.list" v-loading="loading" class="soft-table" height="520">
-        <el-table-column prop="id" label="ID" width="88" />
+      <div class="table-scroll-area">
+        <el-table :data="page.list" v-loading="loading" class="soft-table" height="100%">
+        <el-table-column prop="id" label="编号" width="88" />
         <el-table-column label="对象" min-width="190">
           <template #default="{ row }">
             <div class="object-cell">
               <div class="object-avatar">{{ row.initial || "-" }}</div>
               <div>
-                <div class="object-title">{{ row.target }}</div>
-                <div class="object-subtitle">{{ row.type }}</div>
+                <div class="object-title">{{ displayRowTarget(row) }}</div>
+                <div class="object-subtitle">{{ displayRowType(row) }}</div>
               </div>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="summary" label="内容摘要" min-width="300" show-overflow-tooltip />
+        <el-table-column label="内容摘要" min-width="300" show-overflow-tooltip>
+          <template #default="{ row }">{{ displayRowSummary(row) }}</template>
+        </el-table-column>
         <el-table-column label="风险" width="120">
           <template #default="{ row }">
-            <el-tag :type="riskType(row.risk)" effect="light">{{ row.risk }}</el-tag>
+            <el-tag :type="riskType(row.risk)" effect="light">{{ adminRiskLabel(row.risk) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="130">
@@ -53,21 +48,33 @@
             <el-tag :type="statusType(row.status)" effect="plain">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="updatedAt" label="更新时间" width="150" />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column v-if="resource === 'users'" label="手机号认证" width="170">
+          <template #default="{ row }">
+            <div>{{ verificationLabel(row.verificationStatus) }}</div>
+            <div class="object-subtitle">{{ row.phoneMasked || "未绑定" }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="172">
+          <template #default="{ row }">{{ formatDate(row.updatedAt) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" :width="actionColumnWidth" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="showDetail(row)">查看</el-button>
             <el-button v-if="resource === 'dicts'" link type="primary" @click="openDictDialog(row)">编辑</el-button>
-            <el-button link :type="primaryAction(row).danger ? 'danger' : 'primary'" @click="executeAction(row)">
+            <el-button v-if="primaryAction(row).action !== 'noop'" link :type="primaryAction(row).danger ? 'danger' : 'primary'" @click="executeAction(row)">
               {{ primaryAction(row).text }}
             </el-button>
+			<el-button v-if="resource === 'users'" link type="primary" @click="showVerifications(row)">认证记录</el-button>
+			<el-button v-if="resource === 'users' && row.verificationStatus === 'verified'" link type="warning" @click="changeVerification(row, false)">要求重认证</el-button>
+			<el-button v-if="resource === 'users' && row.verificationStatus !== 'revoked'" link type="danger" @click="changeVerification(row, true)">撤销认证</el-button>
 			<el-button v-if="resource === 'uploads' && row.status === 'pending'" link type="danger" @click="rejectUpload(row)">拒绝</el-button>
           </template>
         </el-table-column>
         <template #empty>
           <el-empty description="暂无记录" />
         </template>
-      </el-table>
+        </el-table>
+      </div>
 
       <div class="pagination-row">
         <el-pagination
@@ -81,20 +88,71 @@
       </div>
     </section>
 
-	<el-dialog v-model="detailVisible" title="记录详情" width="640px">
-	  <el-descriptions v-if="selectedRow" :column="1" border>
-		<el-descriptions-item v-for="(value, key) in selectedRow" :key="key" :label="String(key)">
-		  {{ typeof value === 'object' ? JSON.stringify(value, null, 2) : value }}
+	<el-dialog v-model="detailVisible" title="记录详情" width="680px">
+	  <el-descriptions v-if="selectedRow" :column="1" border class="record-detail">
+		<el-descriptions-item v-for="([key, value]) in detailEntries" :key="key" :label="adminFieldLabel(key)">
+          <div v-if="detailImageUrl(key, value)" class="detail-image">
+            <el-image
+              :src="detailImageUrl(key, value)"
+              :preview-src-list="[detailImageUrl(key, value)]"
+              fit="cover"
+              preview-teleported
+            >
+              <template #error><div class="detail-image-error">图片加载失败</div></template>
+            </el-image>
+            <a :href="detailImageUrl(key, value)" target="_blank" rel="noopener noreferrer">查看原图</a>
+          </div>
+          <div v-else-if="isAdminDetailObject(value)" class="detail-object">
+            <div v-for="(nestedValue, nestedKey) in value" :key="String(nestedKey)" class="detail-object-row">
+              <span>{{ adminFieldLabel(String(nestedKey)) }}</span>
+              <strong>{{ adminValueLabel(String(nestedKey), nestedValue, resource) }}</strong>
+            </div>
+          </div>
+          <span v-else>{{ adminValueLabel(key, value, resource) }}</span>
 		</el-descriptions-item>
 	  </el-descriptions>
     </el-dialog>
+
+	<el-dialog v-model="verificationVisible" title="手机号认证记录" width="760px">
+	  <el-table :data="verificationRecords">
+		<el-table-column label="状态" width="150">
+          <template #default="{ row }">{{ adminVerificationLabel(row.status) }}</template>
+        </el-table-column>
+		<el-table-column prop="phoneMasked" label="脱敏手机号" width="150" />
+		<el-table-column label="认证方式" width="140">
+          <template #default="{ row }">{{ adminEnumLabel(row.method) }}</template>
+        </el-table-column>
+		<el-table-column label="服务商" width="150">
+          <template #default="{ row }">{{ adminEnumLabel(row.provider) }}</template>
+        </el-table-column>
+		<el-table-column label="认证时间" min-width="190">
+          <template #default="{ row }">{{ adminDateLabel(row.verifiedAt) }}</template>
+        </el-table-column>
+	  </el-table>
+	</el-dialog>
 
     <el-dialog v-model="dictVisible" :title="dictForm.id ? '编辑雪场' : '新增雪场'" width="520px">
       <el-form label-width="88px">
         <el-form-item label="雪场名称"><el-input v-model="dictForm.name" /></el-form-item>
         <el-form-item label="城市"><el-input v-model="dictForm.city" /></el-form-item>
         <el-form-item label="省份"><el-input v-model="dictForm.province" /></el-form-item>
-        <el-form-item label="图片地址"><el-input v-model="dictForm.imageUrl" /></el-form-item>
+        <el-form-item label="雪场图片" required>
+          <div class="resort-image-field">
+            <div v-if="dictImagePreview" class="resort-image-preview">
+              <img :src="dictImagePreview" alt="雪场图片预览" />
+              <el-button class="resort-image-remove" type="danger" size="small" @click="removeDictImage">移除</el-button>
+            </div>
+            <el-upload
+              accept="image/jpeg,image/png"
+              :auto-upload="false"
+              :show-file-list="false"
+              :on-change="handleDictImageChange"
+            >
+              <el-button>{{ dictImagePreview ? "更换图片" : "选择图片" }}</el-button>
+            </el-upload>
+            <div class="resort-image-tip">支持 JPG、PNG，大小不超过 5MB</div>
+          </div>
+        </el-form-item>
         <el-form-item label="排序"><el-input-number v-model="dictForm.sort" :min="0" /></el-form-item>
       </el-form>
       <template #footer>
@@ -108,7 +166,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
 import { ElMessage, ElMessageBox } from "element-plus"
-import { getAdminPageWithParams, runAdminAction, saveDict, type AdminResource, type PageResult } from "../api/http"
+import type { UploadFile } from "element-plus"
+import { getAdminPageWithParams, getUserVerifications, runAdminAction, saveDict, uploadResortImage, type AdminResource, type PageResult } from "../api/http"
+import {
+  adminActionLabel,
+  adminDateLabel,
+  adminDetailLabel,
+  adminEnumLabel,
+  adminFieldLabel,
+  adminResourceLabel,
+  adminRiskLabel,
+  adminStatusLabel,
+  adminValueLabel,
+  adminVerificationLabel,
+  isAdminDetailObject
+} from "../utils/adminDisplay"
 
 type Row = Record<string, any>
 
@@ -125,22 +197,46 @@ const pageNumber = ref(1)
 const pageSize = ref(10)
 const detailVisible = ref(false)
 const selectedRow = ref<Row | null>(null)
+const verificationVisible = ref(false)
+const verificationRecords = ref<Row[]>([])
 const page = ref<PageResult<Row>>({ list: [], page: 1, pageSize: 10, total: 0 })
 const dictVisible = ref(false)
 const savingDict = ref(false)
 const dictForm = ref({ id: 0, name: "", city: "", province: "", imageUrl: "", sort: 0, status: "normal" })
+const dictImageFile = ref<File | null>(null)
+const dictImagePreview = ref("")
+const detailOrder = ["id", "target", "type", "summary", "status", "risk", "resource", "targetId", "action", "beforeStatus", "afterStatus", "detail", "updatedAt"]
+const detailEntries = computed(() => Object.entries(selectedRow.value || {})
+  .filter(([key]) => key !== "initial" && key !== "previewPath")
+  .sort(([left], [right]) => {
+    const leftIndex = detailOrder.indexOf(left)
+    const rightIndex = detailOrder.indexOf(right)
+    return (leftIndex < 0 ? detailOrder.length : leftIndex) - (rightIndex < 0 ? detailOrder.length : rightIndex)
+  }))
 
-const statusOptions = [
+const statusOptionMap: Partial<Record<AdminResource, Array<{ label: string; value: string }>>> = {
+  users: [{ label: "正常", value: "normal" }, { label: "已禁用", value: "disabled" }],
+  events: [{ label: "招募中", value: "recruiting" }, { label: "已满员", value: "full" }, { label: "已结束", value: "finished" }, { label: "已取消", value: "cancelled" }, { label: "已下架", value: "removed" }],
+  applications: [{ label: "待处理", value: "pending" }, { label: "已通过", value: "approved" }, { label: "已拒绝", value: "rejected" }, { label: "已取消", value: "cancelled" }],
+  reports: [{ label: "待处理", value: "pending" }, { label: "处理中", value: "processing" }, { label: "已处理", value: "resolved" }, { label: "已拒绝", value: "rejected" }],
+  reviews: [{ label: "正常", value: "normal" }, { label: "已隐藏", value: "hidden" }],
+  messages: [{ label: "正常", value: "normal" }, { label: "已隐藏", value: "hidden" }],
+  dicts: [{ label: "正常", value: "normal" }, { label: "已禁用", value: "disabled" }],
+  uploads: [{ label: "待审核", value: "pending" }, { label: "已通过", value: "approved" }, { label: "已拒绝", value: "rejected" }]
+}
+
+const statusOptions = computed(() => [
   { label: "全部", value: "all" },
-  { label: "正常/招募中", value: "normal" },
-  { label: "待处理", value: "pending" },
-  { label: "处理中", value: "processing" },
-  { label: "已处理", value: "resolved" },
-  { label: "已拒绝", value: "rejected" },
-  { label: "已隐藏", value: "hidden" },
-  { label: "已禁用/下架", value: "disabled" },
-  { label: "已移除", value: "removed" }
-]
+  ...(statusOptionMap[props.resource] || [
+    { label: "正常", value: "normal" },
+    { label: "待处理", value: "pending" },
+    { label: "已处理", value: "resolved" },
+    { label: "已拒绝", value: "rejected" },
+    { label: "已隐藏", value: "hidden" },
+    { label: "已禁用", value: "disabled" },
+    { label: "已下架", value: "removed" }
+  ])
+])
 
 const metaMap: Record<AdminResource, { kicker: string; description: string; tableTitle: string }> = {
   users: { kicker: "账号与信用", description: "查看用户状态、信用信息，必要时禁用或恢复账号。", tableTitle: "用户记录" },
@@ -156,6 +252,7 @@ const metaMap: Record<AdminResource, { kicker: string; description: string; tabl
 }
 
 const meta = computed(() => metaMap[props.resource])
+const actionColumnWidth = computed(() => props.resource === "users" ? 420 : 260)
 
 async function loadData() {
   loading.value = true
@@ -188,15 +285,30 @@ function primaryAction(row: Row) {
       : { text: props.actionText, action: "delist_event", status: "removed", danger: true }
   }
   if (props.resource === "reports") {
-    return { text: props.actionText, action: "resolve_report", status: "resolved", result: "运营已处理", danger: false }
+    return row.status === "resolved"
+      ? { text: "已处理", action: "noop", danger: false }
+      : { text: props.actionText, action: "resolve_report", status: "resolved", result: "运营已处理", danger: false }
   }
   if (props.resource === "reviews") {
     return row.status === "hidden"
       ? { text: "恢复评价", action: "restore_review", status: "normal", danger: false }
       : { text: props.actionText, action: "hide_review", status: "hidden", danger: true }
   }
-  if (props.resource === "messages" || props.resource === "content-reviews") {
-    return { text: props.actionText, action: "hide_message", status: "hidden", danger: true }
+  if (props.resource === "messages") {
+    return row.status === "hidden"
+      ? { text: "恢复消息", action: "restore_message", status: "normal", danger: false }
+      : { text: props.actionText, action: "hide_message", status: "hidden", danger: true }
+  }
+  if (props.resource === "content-reviews") {
+    if (["disabled", "removed", "rejected", "hidden", "resolved"].includes(row.status)) {
+      return { text: "已处置", action: "noop", danger: false }
+    }
+    const kind = String(row.id || "").split(":", 1)[0]
+    const labels: Record<string, string> = {
+      user: "禁用用户", event: "下架行程", application: "拒绝申请",
+      message: "隐藏消息", review: "隐藏评价", report: "处理举报"
+    }
+    return { text: labels[kind] || props.actionText, action: "review_content", status: "hidden", danger: true }
   }
   if (props.resource === "dicts") {
     return row.status === "disabled"
@@ -209,11 +321,44 @@ function primaryAction(row: Row) {
 		: { text: "通过审核", action: "approve_upload", status: "approved", result: "人工审核通过", danger: false }
 	}
 	if (props.resource === "audit-logs") return { text: "查看记录", action: "noop", danger: false }
+  if (props.resource === "applications") {
+    return row.status === "pending"
+      ? { text: "拒绝申请", action: "reject_application", status: "rejected", danger: true }
+      : { text: "查看记录", action: "noop", danger: false }
+  }
   return { text: "查看记录", action: "noop", danger: false }
 }
 
+function displayRowTarget(row: Row) {
+  if (props.resource === "reports" && row.targetType) return `${adminResourceLabel(row.targetType)} #${row.targetId}`
+  if (props.resource === "uploads" && row.kind) return `${adminEnumLabel(row.kind)} #${row.id}`
+  return row.target || "—"
+}
+
+function displayRowType(row: Row) {
+  if (props.resource === "audit-logs") {
+    const matched = String(row.type || "").match(/^([a-z-]+)\s+#(.+)$/i)
+    const resource = row.resource || matched?.[1]
+    const targetId = row.targetId || matched?.[2]
+    return resource ? `${adminResourceLabel(resource)}${targetId ? ` · 对象 #${targetId}` : ""}` : "操作记录"
+  }
+  return adminEnumLabel(row.type)
+}
+
+function displayRowSummary(row: Row) {
+  if (props.resource !== "audit-logs") return row.summary ? adminDetailLabel(row.summary) : "—"
+  const rawSummary = String(row.summary || "")
+  const [rawAction, ...rawDetail] = rawSummary.split(" · ")
+  const action = row.action || rawAction
+  const detail = row.detail || rawDetail.join(" · ")
+  return [adminActionLabel(action), adminDetailLabel(detail)].filter((item) => item && item !== "—").join(" · ") || "—"
+}
+
 async function rejectUpload(row: Row) {
-	const result = await ElMessageBox.prompt("请输入拒绝原因", "拒绝媒体", { inputPlaceholder: "例如：图片包含不适宜内容" })
+	const result = await ElMessageBox.prompt("请输入拒绝原因", "拒绝媒体", {
+    inputPlaceholder: "例如：图片包含不适宜内容",
+    inputValidator: (value) => !!String(value || "").trim() || "必须填写拒绝原因"
+  })
 	await runAdminAction("uploads", row.id, { action: "reject_upload", status: "rejected", result: result.value })
 	ElMessage.success("已拒绝")
 	await loadData()
@@ -240,9 +385,34 @@ async function executeAction(row: Row) {
     await loadData()
     return
   }
-  await ElMessageBox.confirm(`确认执行“${action.text}”？`, "操作确认", { type: action.danger ? "warning" : "info" })
-  await runAdminAction(props.resource, row.id, action)
+  let reason = ""
+  if (action.danger) {
+    const result = await ElMessageBox.prompt(`确认执行“${action.text}”，请输入原因。`, "操作确认", {
+      inputPlaceholder: "该原因会写入审计日志",
+      inputValidator: (value) => !!String(value || "").trim() || "必须填写操作原因",
+      type: "warning"
+    })
+    reason = result.value
+  } else {
+    await ElMessageBox.confirm(`确认执行“${action.text}”？`, "操作确认", { type: "info" })
+  }
+  await runAdminAction(props.resource, row.id, { ...action, reason })
   ElMessage.success("操作成功")
+  await loadData()
+}
+
+async function showVerifications(row: Row) {
+  verificationRecords.value = await getUserVerifications(row.id) as Row[]
+  verificationVisible.value = true
+}
+
+async function changeVerification(row: Row, revoke: boolean) {
+  const result = await ElMessageBox.prompt("请输入处理原因", revoke ? "撤销手机号认证" : "要求重新认证", {
+    inputPlaceholder: "该原因会写入审计日志",
+    inputValidator: (value) => !!String(value || "").trim() || "必须填写原因"
+  })
+  await runAdminAction("users", row.id, { action: revoke ? "revoke_phone_verification" : "require_phone_reverification", reason: result.value })
+  ElMessage.success("手机号认证状态已更新")
   await loadData()
 }
 
@@ -257,14 +427,56 @@ function openDictDialog(row?: Row) {
     sort: Number(extra.sort || 0),
     status: row?.status || "normal"
   }
+  clearDictImageFile()
+  dictImagePreview.value = dictForm.value.imageUrl
   dictVisible.value = true
 }
 
+function clearDictImageFile() {
+  if (dictImagePreview.value.startsWith("blob:")) URL.revokeObjectURL(dictImagePreview.value)
+  dictImageFile.value = null
+}
+
+function handleDictImageChange(uploadFile: UploadFile) {
+  const file = uploadFile.raw
+  if (!file) return
+  if (!["image/jpeg", "image/png"].includes(file.type)) {
+    ElMessage.warning("仅支持 JPG、PNG 图片")
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning("图片不能超过 5MB")
+    return
+  }
+  clearDictImageFile()
+  dictImageFile.value = file
+  dictImagePreview.value = URL.createObjectURL(file)
+}
+
+function removeDictImage() {
+  clearDictImageFile()
+  dictImagePreview.value = ""
+  dictForm.value.imageUrl = ""
+}
+
 async function submitDict() {
+  if (!dictForm.value.name.trim() || !dictForm.value.city.trim()) {
+    ElMessage.warning("请填写雪场名称和城市")
+    return
+  }
+  if (!dictImageFile.value && !dictForm.value.imageUrl) {
+    ElMessage.warning("请上传雪场图片")
+    return
+  }
   savingDict.value = true
   try {
+    if (dictImageFile.value) {
+      const uploaded = await uploadResortImage(dictImageFile.value)
+      dictForm.value.imageUrl = uploaded.url
+    }
     await saveDict(dictForm.value, dictForm.value.id || undefined)
     ElMessage.success("保存成功")
+    clearDictImageFile()
     dictVisible.value = false
     await loadData()
   } finally {
@@ -273,8 +485,9 @@ async function submitDict() {
 }
 
 function riskType(risk: string) {
-  if (risk === "高") return "danger"
-  if (risk === "中") return "warning"
+  const label = adminRiskLabel(risk)
+  if (label === "高") return "danger"
+  if (label === "中") return "warning"
   return "success"
 }
 
@@ -285,21 +498,33 @@ function statusType(value: string) {
 }
 
 function statusLabel(value: string) {
-  const labels: Record<string, string> = {
-    normal: "正常",
-    disabled: "已禁用",
-    recruiting: "招募中",
-    full: "已满员",
-    finished: "已结束",
-    cancelled: "已取消",
-    removed: "已下架",
-    pending: "待处理",
-    processing: "处理中",
-    resolved: "已处理",
-    rejected: "已拒绝",
-    hidden: "已隐藏"
+  return adminStatusLabel(value, props.resource)
+}
+
+function verificationLabel(value: string) {
+  return adminVerificationLabel(value)
+}
+
+function formatDate(value?: string) {
+  return adminDateLabel(value)
+}
+
+function detailImageUrl(key: string, value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return ""
+  const imageFields = ["image", "imageUrl", "avatarUrl", "publicUrl"]
+  if (!imageFields.includes(key) && !(props.resource === "uploads" && key === "summary")) return ""
+  const url = value.trim()
+  if (!/^(https?:\/\/|\/uploads\/)/i.test(url)) return ""
+  if (!url.startsWith("/uploads/")) return url
+  const apiBase = String(import.meta.env.VITE_API_BASE_URL || "")
+  if (/^https?:\/\//i.test(apiBase)) {
+    try {
+      return new URL(url, apiBase).toString()
+    } catch {
+      return url
+    }
   }
-  return labels[value] || value
+  return url
 }
 
 watch(() => props.resource, () => {
@@ -310,3 +535,69 @@ watch(() => props.resource, () => {
 })
 onMounted(loadData)
 </script>
+
+<style scoped>
+.resort-image-field {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.resort-image-preview {
+  position: relative;
+  width: 240px;
+  height: 140px;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
+}
+
+.resort-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.resort-image-remove {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+.resort-image-tip {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.detail-image {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.detail-image :deep(.el-image) {
+  width: min(360px, 100%);
+  height: 210px;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
+  cursor: zoom-in;
+}
+
+.detail-image-error {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--el-text-color-secondary);
+}
+
+.detail-image a {
+  color: var(--el-color-primary);
+  font-size: 13px;
+  text-decoration: none;
+}
+</style>

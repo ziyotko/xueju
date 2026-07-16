@@ -26,7 +26,10 @@ Page({
   async loadRequests() {
     try {
       const requests = await api.applications(this.data.eventId)
-      this.setData({ requests: requests.map((item) => ({ ...item, statusLabel: this.data.statusText[item.status] || '待审核' })) })
+      this.setData({ requests: requests.map((item) => {
+        const name = item.name || item.nickname || '雪友'
+        return { ...item, initial: item.initial || name.slice(0, 1), statusLabel: this.data.statusText[item.status] || '待审核' }
+      }) })
     } catch (error) {
       this.setData({ requests: [] })
     }

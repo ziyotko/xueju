@@ -29,6 +29,7 @@ Page({
   data: {
     eventId: 1,
     event: {},
+    readOnly: false,
     messages: [],
 	nextBeforeId: 0,
 	loadingOlder: false,
@@ -52,15 +53,16 @@ Page({
     const eventId = Number(options.eventId || 1)
     let event = {}
     try { event = await api.event(eventId) } catch (error) {}
-    this.setData({ eventId, event })
+    const readOnly = event.status === 'finished' || event.status === 'cancelled'
+    this.setData({ eventId, event, readOnly })
     wx.setNavigationBarTitle({ title: event.resort ? `${event.resort}群聊` : '局内群聊' })
     this.loadMessages()
-    this.startPolling()
+    if (!readOnly) this.startPolling()
   },
 
   onShow() {
     this.scrollToBottom()
-    this.startPolling()
+    if (!this.data.readOnly) this.startPolling()
   },
 
   onHide() {
@@ -108,10 +110,17 @@ Page({
 
   onInput(event) { this.setData({ inputValue: event.detail.value }) },
   onConfirm() { this.send() },
-  toggleActionPanel() { this.setData({ actionPanelVisible: !this.data.actionPanelVisible }, () => this.scrollToBottom()) },
+  toggleActionPanel() {
+    if (this.data.readOnly) return
+    this.setData({ actionPanelVisible: !this.data.actionPanelVisible }, () => this.scrollToBottom())
+  },
   hideActionPanel() { if (this.data.actionPanelVisible) this.setData({ actionPanelVisible: false }) },
 
   async send() {
+    if (this.data.readOnly) {
+      wx.showToast({ title: '活动已结束，群聊仅可查看', icon: 'none' })
+      return
+    }
     const content = this.data.inputValue.trim()
     if (!content) {
       wx.showToast({ title: '请输入消息', icon: 'none' })
@@ -119,7 +128,8 @@ Page({
     }
     try {
       const saved = await api.sendMessage(this.data.eventId, content)
-      const next = mapMessage({ ...saved, senderId: (getApp().globalData.user || {}).id, nickname: '我', time: nowText() })
+      const current = getApp().globalData.user || wx.getStorageSync('xueju_user') || {}
+      const next = mapMessage({ ...saved, senderId: current.id, nickname: current.nickname || '我', avatarUrl: current.avatarUrl || '', time: nowText() })
       this.setData({ messages: this.data.messages.concat(next), inputValue: '', actionPanelVisible: false }, () => {
         this.scrollToBottom()
         this.markRead()
@@ -130,6 +140,7 @@ Page({
   },
 
   sendQuickAction(event) {
+    if (this.data.readOnly) return
     const index = Number(event.currentTarget.dataset.index)
     const action = this.data.quickActions[index]
     if (!action) return

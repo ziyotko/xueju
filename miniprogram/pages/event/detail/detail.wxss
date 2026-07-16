@@ -162,6 +162,8 @@
   align-items: center;
   justify-content: center;
   font-weight: 800;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .host-name {
@@ -315,8 +317,9 @@
 }
 
 .bottom-actions {
-  bottom: env(safe-area-inset-bottom);
-  height: 124rpx;
+  bottom: 0;
+  height: calc(124rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
 }
 
 .bottom-actions .button-outline.manage {

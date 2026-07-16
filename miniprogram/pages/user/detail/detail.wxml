@@ -1,6 +1,9 @@
 <view class="user-page safe-bottom">
   <view class="user-card card">
-    <view class="avatar big">{{initial}}</view>
+    <view class="avatar big">
+      <image wx:if="{{avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{avatarUrl}}" />
+      <text wx:else>{{initial}}</text>
+    </view>
     <view class="name-row"><text>{{name}}</text><app-icon name="check-circle" size="16" active /></view>
     <view class="meta">{{level}}{{credit ? ' · ' + credit : ''}}</view>
 	<view wx:if="{{bio}}" class="meta">{{bio}}</view>

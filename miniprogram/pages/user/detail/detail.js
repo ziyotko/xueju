@@ -28,6 +28,7 @@ Page({
     level: '滑雪资料待完善',
 	bio: '',
     credit: '',
+    avatarUrl: '',
     tags: [],
     reviews: [],
     reviewText: '暂无同滑评价'
@@ -35,8 +36,8 @@ Page({
 
   async onLoad(options) {
     const userId = Number(options.id || 1)
-    let user = {}
-    try { user = await api.publicUser(userId) } catch (error) {}
+    let user = wx.getStorageSync(`xueju_user_detail_${userId}`) || {}
+    try { user = { ...user, ...(await api.publicUser(userId)) } } catch (error) {}
     let myId = currentUserId()
     if (!myId) {
       try {
@@ -51,6 +52,7 @@ Page({
       isSelf: !!myId && Number(userId) === myId,
       name,
       initial: user.initial || name.slice(0, 1),
+      avatarUrl: user.avatarUrl || '',
       level: displayLevel(user),
 	  bio: user.bio || '',
       credit: user.credit || (user.creditScore ? `信用 ${Number(user.creditScore).toFixed(1)}` : ''),

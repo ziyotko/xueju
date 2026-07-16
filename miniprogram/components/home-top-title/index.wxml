@@ -1,5 +1,5 @@
-<view class="home-title-bar">
-  <view class="home-title-bar__spacer"></view>
+<view class="home-title-bar" style="height: {{height}}px;">
+  <view class="home-title-bar__spacer" style="width: {{sideInset}}px; flex-basis: {{sideInset}}px;"></view>
   <view class="home-title-bar__title">{{title}}</view>
-  <view class="home-title-bar__spacer"></view>
+  <view class="home-title-bar__spacer" style="width: {{sideInset}}px; flex-basis: {{sideInset}}px;"></view>
 </view>

@@ -20,6 +20,7 @@ function mapReviewTarget(member) {
     id: Number(member.id || member.userId),
     name,
     initial: member.initial || name.slice(0, 1),
+    avatarUrl: member.avatarUrl || '',
     meta: member.level || [member.skiType, member.skiLevel].filter(Boolean).join(' · ') || '同行成员'
   }
 }

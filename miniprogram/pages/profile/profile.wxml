@@ -17,7 +17,7 @@
     <view class="between profile-name-row">
       <view class="nickname">
         <text>{{nickname}}</text>
-        <app-icon name="check-circle" size="16" active />
+        <app-icon wx:if="{{realNameVerified}}" name="check-circle" size="16" active />
       </view>
       <view class="edit-profile" bindtap="goEditProfile">编辑资料</view>
     </view>
@@ -37,11 +37,11 @@
     </view>
   </view>
 
-  <view class="info-card card">
-    <view class="block-title">认证信息</view>
+  <view class="info-card card" bindtap="showRealNameInfo">
+    <view class="block-title">手机号认证</view>
     <view class="tag-row">
-      <view class="tag tag-soft tag-icon" wx:for="{{certifications}}" wx:key="*this">
-        <app-icon name="check-circle" size="16" active />
+      <view class="tag tag-soft tag-icon {{realNameVerified ? '' : 'tag-warning'}}" wx:for="{{certifications}}" wx:key="*this">
+        <app-icon name="{{realNameVerified ? 'check-circle' : 'warning'}}" size="16" active="{{realNameVerified}}" />
         <text>{{item}}</text>
       </view>
     </view>
@@ -69,7 +69,10 @@
     <view wx:if="{{reviews.length}}">
       <view class="review" wx:for="{{reviews}}" wx:key="id">
         <view class="row">
-          <view class="avatar">{{item.initial}}</view>
+          <view class="avatar">
+            <image wx:if="{{item.avatarUrl}}" class="avatar-image" mode="aspectFill" src="{{item.avatarUrl}}" />
+            <text wx:else>{{item.initial}}</text>
+          </view>
           <view class="review-main">
             <view class="review-name">
               <view class="review-user">

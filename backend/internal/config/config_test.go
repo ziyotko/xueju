@@ -11,6 +11,8 @@ func validProductionConfig() Config {
 		WechatAppID: "wx-app", WechatAppSecret: "secret", ContentSecurity: true, MediaCallbackToken: "media-callback-token-long-enough",
 		AdminUsername: "operator", AdminPassword: "a-long-admin-password", PublicBaseURL: "https://api.example.com",
 		StorageDriver: "s3", S3Endpoint: "https://storage.example.com", S3Bucket: "xueju", S3Region: "cn-north-1", S3AccessKey: "key", S3SecretKey: "secret",
+		AliyunAccessKeyID: "ram-key", AliyunAccessKeySecret: "ram-secret", AliyunSmsSignName: "sign", AliyunSmsTemplateCode: "100001",
+		PhoneEncryptionKey: strings.Repeat("e", 32), PhoneHashSecret: strings.Repeat("h", 32),
 	}
 }
 

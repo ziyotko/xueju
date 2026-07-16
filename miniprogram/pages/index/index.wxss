@@ -1,9 +1,15 @@
 .home-page {
   min-height: 100vh;
-  padding: env(safe-area-inset-top) 16px calc(92px + env(safe-area-inset-bottom));
+  padding: 0 16px calc(92px + env(safe-area-inset-bottom));
   box-sizing: border-box;
   background: linear-gradient(180deg, #f2f6ff 0%, #f6f8fc 34%, #f6f8fc 100%);
   overflow-x: hidden;
+}
+
+.home-page__navigation {
+  margin: 0 -16px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .home-page__section {

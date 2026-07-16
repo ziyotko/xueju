@@ -16,6 +16,7 @@ Page({
     nickname: "大力",
     avatarInitial: "大",
     avatarUrl: "",
+    savedAvatarUrl: "",
     avatarLocalPath: "",
     avatarChanged: false,
     city: "北京",
@@ -38,6 +39,7 @@ Page({
         nickname: profile.nickname || "雪友",
         avatarInitial: (profile.nickname || "雪").slice(0, 1),
         avatarUrl: profile.avatarUrl || "",
+        savedAvatarUrl: profile.avatarUrl || "",
         avatarLocalPath: "",
         avatarChanged: false,
         city: profile.city || "北京",
@@ -105,7 +107,7 @@ Page({
     const skiLevel = ["beginner", "primary", "intermediate", "advanced"][this.data.levelIndex]
     const skiType = ["snowboard", "ski", "both"][this.data.skiTypeIndex]
     try {
-      let avatarUrl = this.data.avatarUrl
+      let avatarUrl = this.data.avatarChanged ? this.data.avatarUrl : this.data.savedAvatarUrl
       if (this.data.avatarChanged && avatarUrl && !isUploadedImageUrl(avatarUrl)) {
 		let uploaded = await api.uploadAvatar(avatarUrl)
 		if (!uploaded.url && uploaded.id) uploaded = await api.waitForUpload(uploaded)

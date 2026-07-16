@@ -6,6 +6,10 @@ const trafficText = { self_drive: '自驾同行', high_speed_rail: '高铁同行
 const statusText = { recruiting: '招募中', full: '已满员', finished: '已结束', cancelled: '已取消', removed: '已下架' }
 const defaultEventImage = 'https://images.unsplash.com/photo-1740137660688-3d3f2b5422b6?auto=format&fit=crop&w=900&q=80'
 
+function usableImageUrl(value) {
+  return !!value && !/^(http:\/\/tmp\/|wxfile:\/\/)/i.test(value)
+}
+
 function getCurrentUserId() {
   const app = typeof getApp === 'function' ? getApp() : null
   const user = (app && app.globalData && app.globalData.user) || wx.getStorageSync('xueju_user') || {}
@@ -67,8 +71,8 @@ function mapEvent(item) {
     })),
     memberInitials: members.slice(0, 6).map((member) => member.initial),
     note: item.remark || '',
-    image: item.imageUrl || item.image || defaultEventImage,
-    imageUrl: item.imageUrl || item.image || '',
+    image: usableImageUrl(item.imageUrl || item.image) ? (item.imageUrl || item.image) : defaultEventImage,
+    imageUrl: usableImageUrl(item.imageUrl || item.image) ? (item.imageUrl || item.image) : '',
     isCreatedByMe: !!item.isCreatedByMe || (userId ? Number(item.creatorId) === Number(userId) : false),
     status: item.status,
     members
@@ -117,6 +121,15 @@ module.exports = {
   },
   async deleteMe() {
     return http.delete('/user/me')
+  },
+  async verificationStatus() {
+    return http.get('/user/verification')
+  },
+  async sendPhoneVerificationCode(phone, changePhone = false) {
+    return http.post('/user/verification/sms/send', { phone, agreed: true, changePhone })
+  },
+  async checkPhoneVerificationCode(phone, code, changePhone = false) {
+    return http.post('/user/verification/sms/check', { phone, code, changePhone })
   },
   async uploadAvatar(filePath) {
     return http.upload('/uploads/avatar', filePath, 'file')

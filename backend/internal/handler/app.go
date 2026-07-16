@@ -12,7 +12,9 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,29 +26,32 @@ import (
 	"xueju/backend/internal/config"
 	"xueju/backend/internal/contentsecurity"
 	"xueju/backend/internal/middleware"
+	"xueju/backend/internal/phoneverification"
 	"xueju/backend/internal/response"
 	"xueju/backend/internal/storage"
 	"xueju/backend/internal/textfilter"
 )
 
 type AppHandler struct {
-	cfg        config.Config
-	db         *sql.DB
-	security   *contentsecurity.Service
-	textFilter *textfilter.Filter
-	client     *http.Client
-	storage    storage.Store
+	cfg           config.Config
+	db            *sql.DB
+	security      *contentsecurity.Service
+	textFilter    *textfilter.Filter
+	client        *http.Client
+	storage       storage.Store
+	phoneVerifier phoneverification.Client
 }
 
 func NewAppHandler(cfg config.Config, db *sql.DB) *AppHandler {
 	filter, _ := textfilter.New()
 	return &AppHandler{
-		cfg:        cfg,
-		db:         db,
-		security:   contentsecurity.New(cfg),
-		textFilter: filter,
-		storage:    storage.New(cfg),
-		client:     &http.Client{Timeout: 10 * time.Second},
+		cfg:           cfg,
+		db:            db,
+		security:      contentsecurity.New(cfg),
+		textFilter:    filter,
+		storage:       storage.New(cfg),
+		phoneVerifier: phoneverification.NewAliyunClient(cfg),
+		client:        &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -97,6 +102,7 @@ func (h *AppHandler) WechatLogin(c *gin.Context) {
 	}
 
 	delete(user, "openid")
+	normalizeUserMediaForRequest(c, user)
 	response.Success(c, gin.H{"token": token, "user": user})
 }
 
@@ -118,6 +124,7 @@ func (h *AppHandler) Me(c *gin.Context) {
 		return
 	}
 	delete(user, "openid")
+	normalizeUserMediaForRequest(c, user)
 	response.Success(c, user)
 }
 
@@ -135,6 +142,7 @@ func (h *AppHandler) PublicUser(c *gin.Context) {
 		return
 	}
 	delete(user, "openid")
+	normalizeUserMediaForRequest(c, user)
 	if visible, ok := user["genderVisible"].(bool); !visible || !ok {
 		user["gender"] = 0
 	}
@@ -252,6 +260,7 @@ func (h *AppHandler) UpdateMe(c *gin.Context) {
 	}
 	user, _ := h.userByID(userID)
 	delete(user, "openid")
+	normalizeUserMediaForRequest(c, user)
 	response.Success(c, user)
 }
 
@@ -302,6 +311,7 @@ func (h *AppHandler) DeleteMe(c *gin.Context) {
 		{`DELETE FROM chat_reads WHERE user_id=?`, []interface{}{userID}},
 		{`DELETE FROM notifications WHERE user_id=?`, []interface{}{userID}},
 		{`UPDATE media_uploads SET status='rejected', review_result='account_deleted' WHERE user_id=?`, []interface{}{userID}},
+		{`UPDATE user_verifications SET status='revoked', active_phone_hash=NULL, phone_encrypted='', phone_hash='', phone_masked='', revoked_at=NOW(), revoke_reason='account_deleted' WHERE user_id=?`, []interface{}{userID}},
 	}
 	for _, statement := range statements {
 		if _, err := tx.Exec(statement.query, statement.args...); err != nil {
@@ -312,7 +322,7 @@ func (h *AppHandler) DeleteMe(c *gin.Context) {
 	deletedOpenID := fmt.Sprintf("deleted:%d:%d", userID, time.Now().UnixNano())
 	if _, err := tx.Exec(`UPDATE users SET openid=?, unionid=NULL, nickname='已注销用户', avatar_url='', bio='', phone=NULL,
 		gender=0, gender_visible=0, city='', ski_type='', ski_level='', style_tags=JSON_ARRAY(), favorite_resorts=JSON_ARRAY(),
-		has_car=0, status='disabled', deleted_at=NOW() WHERE id=?`, deletedOpenID, userID); err != nil {
+		has_car=0, verification_status='revoked', verification_method='', verified_at=NULL, phone_masked='', status='disabled', deleted_at=NOW() WHERE id=?`, deletedOpenID, userID); err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
 	}
@@ -425,6 +435,9 @@ func (h *AppHandler) CreateEvent(c *gin.Context) {
 	}
 	userID, ok := currentUserID(c)
 	if !ok || !h.ensureActive(c, userID) {
+		return
+	}
+	if !h.requireVerifiedUser(c, userID) {
 		return
 	}
 	var req eventRequest
@@ -700,6 +713,9 @@ func (h *AppHandler) UpdateEvent(c *gin.Context) {
 	if !ok || !h.ensureActive(c, userID) {
 		return
 	}
+	if !h.requireVerifiedUser(c, userID) {
+		return
+	}
 	var creatorID int64
 	var currentMembers int
 	var status string
@@ -779,6 +795,9 @@ func (h *AppHandler) SetEventStatus(status string) gin.HandlerFunc {
 		if !ok || !h.ensureActive(c, userID) {
 			return
 		}
+		if !h.requireVerifiedUser(c, userID) {
+			return
+		}
 		if status != "cancelled" && status != "finished" {
 			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported event status transition")
 			return
@@ -822,6 +841,9 @@ func (h *AppHandler) ApplyEvent(c *gin.Context) {
 	h.reconcileExpiredEvents()
 	userID, ok := currentUserID(c)
 	if !ok || !h.ensureActive(c, userID) {
+		return
+	}
+	if !h.requireVerifiedUser(c, userID) {
 		return
 	}
 	var req struct {
@@ -984,6 +1006,9 @@ func (h *AppHandler) ReviewJoinRequest(status string) gin.HandlerFunc {
 		if !ok || !h.ensureActive(c, userID) {
 			return
 		}
+		if !h.requireVerifiedUser(c, userID) {
+			return
+		}
 		var req struct {
 			Reason string `json:"reason"`
 		}
@@ -1038,7 +1063,16 @@ func (h *AppHandler) ReviewJoinRequest(status string) gin.HandlerFunc {
 			return
 		}
 		if status == "approved" {
-			if eventStatus != "recruiting" || currentMembers >= maxMembers {
+			var applicantVerificationStatus string
+			if err := tx.QueryRow(`SELECT verification_status FROM users WHERE id=? FOR UPDATE`, applicantID).Scan(&applicantVerificationStatus); err != nil {
+				h.sqlError(c, err)
+				return
+			}
+			if applicantVerificationStatus != "verified" {
+				response.Error(c, http.StatusForbidden, response.CodeUnauthorized, "申请人尚未完成实名认证")
+				return
+			}
+			if eventStatus != "recruiting" || maxMembers > 20 || currentMembers >= maxMembers {
 				response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event is full or no longer recruiting")
 				return
 			}
@@ -1192,7 +1226,7 @@ func (h *AppHandler) Trips(kind string) gin.HandlerFunc {
 			where = append(where, "(r.applicant_id=? OR r.creator_id=?) AND r.status='pending'", "e.status NOT IN ('finished', 'cancelled')")
 			args = append(args, userID, userID)
 		case "finished":
-			where = append(where, "(e.status='finished' AND (e.creator_id=? OR m.user_id=?))")
+			where = append(where, "(e.status IN ('finished','cancelled') AND (e.creator_id=? OR m.user_id=?))")
 			args = append(args, userID, userID)
 		}
 		list, _, err := h.eventPage(where, args, "e.event_date DESC, e.created_at DESC", 1, 200)
@@ -1212,6 +1246,9 @@ func (h *AppHandler) ChatConversations(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	if !h.requireVerifiedUser(c, userID) {
 		return
 	}
 	rows, err := h.db.Query(`SELECT e.id, e.title, e.resort_name, e.event_date, e.start_time, e.current_members, e.max_members, e.image_url, e.status,
@@ -1284,6 +1321,10 @@ func (h *AppHandler) Messages(c *gin.Context) {
 	if !h.canAccessEvent(c, c.Param("id")) {
 		return
 	}
+	userID, ok := currentUserID(c)
+	if !ok || !h.requireVerifiedUser(c, userID) {
+		return
+	}
 	beforeID, _ := strconv.ParseInt(c.Query("beforeId"), 10, 64)
 	afterID, _ := strconv.ParseInt(c.Query("afterId"), 10, 64)
 	limit, _ := strconv.Atoi(c.Query("limit"))
@@ -1342,6 +1383,9 @@ func (h *AppHandler) MarkChatRead(c *gin.Context) {
 	if !ok || !h.canAccessEvent(c, c.Param("id")) {
 		return
 	}
+	if !h.requireVerifiedUser(c, userID) {
+		return
+	}
 	if err := h.markChatRead(c.Param("id"), userID); err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -1356,6 +1400,9 @@ func (h *AppHandler) MarkAllChatsRead(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
 		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "missing user")
+		return
+	}
+	if !h.requireVerifiedUser(c, userID) {
 		return
 	}
 	_, err := h.db.Exec(`INSERT INTO chat_reads (event_id, user_id, last_read_message_id)
@@ -1379,6 +1426,18 @@ func (h *AppHandler) SendMessage(c *gin.Context) {
 	}
 	userID, ok := currentUserID(c)
 	if !ok || !h.ensureActive(c, userID) || !h.canAccessEvent(c, c.Param("id")) {
+		return
+	}
+	if !h.requireVerifiedUser(c, userID) {
+		return
+	}
+	var eventStatus string
+	if err := h.db.QueryRow(`SELECT status FROM ski_events WHERE id=? AND deleted_at IS NULL`, c.Param("id")).Scan(&eventStatus); err != nil {
+		h.sqlError(c, err)
+		return
+	}
+	if eventStatus != "recruiting" && eventStatus != "full" {
+		response.Error(c, http.StatusForbidden, response.CodeForbidden, "活动已结束或取消，群聊仅可查看历史消息")
 		return
 	}
 	var req struct {
@@ -1416,6 +1475,9 @@ func (h *AppHandler) CreateReview(c *gin.Context) {
 	}
 	userID, ok := currentUserID(c)
 	if !ok || !h.ensureActive(c, userID) {
+		return
+	}
+	if !h.requireVerifiedUser(c, userID) {
 		return
 	}
 	var req struct {
@@ -1494,7 +1556,7 @@ func (h *AppHandler) UserReviews(c *gin.Context) {
 	if !h.requireDB(c) {
 		return
 	}
-	rows, err := h.db.Query(`SELECT r.id, r.event_id, e.title, r.reviewer_id, u.nickname, r.score, r.positive_tags, r.negative_tags, r.content, r.is_anonymous, r.created_at
+	rows, err := h.db.Query(`SELECT r.id, r.event_id, e.title, r.reviewer_id, u.nickname, u.avatar_url, r.score, r.positive_tags, r.negative_tags, r.content, r.is_anonymous, r.created_at
 		FROM reviews r JOIN ski_events e ON e.id=r.event_id JOIN users u ON u.id=r.reviewer_id
 		WHERE r.reviewee_id=? AND r.status='normal' ORDER BY r.created_at DESC`, c.Param("id"))
 	if err != nil {
@@ -1505,15 +1567,16 @@ func (h *AppHandler) UserReviews(c *gin.Context) {
 	list := []gin.H{}
 	for rows.Next() {
 		var id, eventID, reviewerID int64
-		var title, nickname, positive, negative, content string
+		var title, nickname, avatarURL, positive, negative, content string
 		var score, anonymous int
 		var created time.Time
-		_ = rows.Scan(&id, &eventID, &title, &reviewerID, &nickname, &score, &positive, &negative, &content, &anonymous, &created)
+		_ = rows.Scan(&id, &eventID, &title, &reviewerID, &nickname, &avatarURL, &score, &positive, &negative, &content, &anonymous, &created)
 		if anonymous == 1 {
 			nickname = "匿名雪友"
 			reviewerID = 0
+			avatarURL = ""
 		}
-		list = append(list, gin.H{"id": id, "eventId": eventID, "eventTitle": title, "reviewerId": reviewerID, "reviewerName": nickname, "score": score, "positiveTags": jsonList(positive), "negativeTags": jsonList(negative), "content": content, "createdAt": created})
+		list = append(list, gin.H{"id": id, "eventId": eventID, "eventTitle": title, "reviewerId": reviewerID, "reviewerName": nickname, "reviewerAvatarUrl": avatarURL, "score": score, "positiveTags": jsonList(positive), "negativeTags": jsonList(negative), "content": content, "createdAt": created})
 	}
 	response.Success(c, list)
 }
@@ -1813,8 +1876,8 @@ func validateEventRequest(req eventRequest, currentMembers int) string {
 	if strings.TrimSpace(req.ResortName) == "" && req.ResortID <= 0 {
 		return "resort is required"
 	}
-	if req.MaxMembers < currentMembers || req.MaxMembers > 12 {
-		return "maxMembers must include current members and be between 1 and 12"
+	if req.MaxMembers < currentMembers || req.MaxMembers > 20 {
+		return "maxMembers must include current members and be between 1 and 20"
 	}
 	date, err := time.Parse("2006-01-02", req.EventDate)
 	if err != nil {
@@ -1939,12 +2002,21 @@ func (h *AppHandler) upsertUserByOpenID(openid, unionid string) (gin.H, error) {
 func (h *AppHandler) userByID(id int64) (gin.H, error) {
 	var styleTags, favoriteResorts sql.NullString
 	var user userRow
-	err := h.db.QueryRow(`SELECT id, openid, nickname, avatar_url, bio, gender, gender_visible, city, ski_type, ski_level, style_tags, favorite_resorts, has_car, credit_score, event_count, join_count, good_rate, status, created_at, updated_at FROM users WHERE id=? AND deleted_at IS NULL`, id).
-		Scan(&user.ID, &user.OpenID, &user.Nickname, &user.AvatarURL, &user.Bio, &user.Gender, &user.GenderVisible, &user.City, &user.SkiType, &user.SkiLevel, &styleTags, &favoriteResorts, &user.HasCar, &user.CreditScore, &user.EventCount, &user.JoinCount, &user.GoodRate, &user.Status, &user.CreatedAt, &user.UpdatedAt)
+	var verificationStatus, verificationMethod, phoneMasked string
+	var verifiedAt sql.NullTime
+	err := h.db.QueryRow(`SELECT id, openid, nickname, avatar_url, bio, gender, gender_visible, city, ski_type, ski_level, style_tags, favorite_resorts, has_car, credit_score, event_count, join_count, good_rate, verification_status, verification_method, phone_masked, verified_at, status, created_at, updated_at FROM users WHERE id=? AND deleted_at IS NULL`, id).
+		Scan(&user.ID, &user.OpenID, &user.Nickname, &user.AvatarURL, &user.Bio, &user.Gender, &user.GenderVisible, &user.City, &user.SkiType, &user.SkiLevel, &styleTags, &favoriteResorts, &user.HasCar, &user.CreditScore, &user.EventCount, &user.JoinCount, &user.GoodRate, &verificationStatus, &verificationMethod, &phoneMasked, &verifiedAt, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-	return gin.H{"id": user.ID, "openid": user.OpenID, "nickname": user.Nickname, "avatarUrl": user.AvatarURL, "bio": user.Bio, "gender": user.Gender, "genderVisible": user.GenderVisible == 1, "city": user.City, "skiType": user.SkiType, "skiLevel": user.SkiLevel, "styleTags": jsonList(styleTags.String), "favoriteResorts": jsonList(favoriteResorts.String), "hasCar": user.HasCar == 1, "creditScore": user.CreditScore, "eventCount": user.EventCount, "joinCount": user.JoinCount, "goodRate": user.GoodRate, "status": user.Status, "createdAt": user.CreatedAt, "updatedAt": user.UpdatedAt}, nil
+	if user.AvatarURL == "" {
+		var recovered string
+		if err := h.db.QueryRow(`SELECT public_url FROM media_uploads WHERE user_id=? AND kind='avatars' AND status='approved' ORDER BY id DESC LIMIT 1`, id).Scan(&recovered); err == nil && recovered != "" {
+			user.AvatarURL = recovered
+			_, _ = h.db.Exec(`UPDATE users SET avatar_url=? WHERE id=? AND avatar_url=''`, recovered, id)
+		}
+	}
+	return gin.H{"id": user.ID, "openid": user.OpenID, "nickname": user.Nickname, "avatarUrl": user.AvatarURL, "bio": user.Bio, "gender": user.Gender, "genderVisible": user.GenderVisible == 1, "city": user.City, "skiType": user.SkiType, "skiLevel": user.SkiLevel, "styleTags": jsonList(styleTags.String), "favoriteResorts": jsonList(favoriteResorts.String), "hasCar": user.HasCar == 1, "creditScore": user.CreditScore, "eventCount": user.EventCount, "joinCount": user.JoinCount, "goodRate": user.GoodRate, "verificationStatus": verificationStatus, "verificationMethod": verificationMethod, "phoneMasked": phoneMasked, "verifiedAt": nullableTime(verifiedAt), "realNameVerified": verificationStatus == "verified", "status": user.Status, "createdAt": user.CreatedAt, "updatedAt": user.UpdatedAt}, nil
 }
 
 func (h *AppHandler) userByIDParam(id string) (gin.H, error) {
@@ -2155,12 +2227,12 @@ func (h *AppHandler) canAccessEvent(c *gin.Context, eventID string) bool {
 	}
 	var count int
 	if err := h.db.QueryRow(`SELECT COUNT(*) FROM event_members m JOIN ski_events e ON e.id=m.event_id
-		WHERE m.event_id=? AND m.user_id=? AND m.status='active' AND e.deleted_at IS NULL AND e.status IN ('recruiting','full')`, eventID, userID).Scan(&count); err != nil {
+		WHERE m.event_id=? AND m.user_id=? AND m.status='active' AND e.deleted_at IS NULL AND e.status IN ('recruiting','full','finished','cancelled')`, eventID, userID).Scan(&count); err != nil {
 		h.sqlError(c, err)
 		return false
 	}
 	if count == 0 {
-		response.Error(c, http.StatusForbidden, response.CodeUnauthorized, "only members can access event chat")
+		response.Error(c, http.StatusForbidden, response.CodeForbidden, "only members can access event chat")
 		return false
 	}
 	return true
@@ -2394,4 +2466,33 @@ func timeString(value sql.NullTime, layout string) string {
 		return ""
 	}
 	return value.Time.Format(layout)
+}
+
+func normalizeUserMediaForRequest(c *gin.Context, user gin.H) {
+	avatarURL, _ := user["avatarUrl"].(string)
+	user["avatarUrl"] = mediaURLForRequest(c, avatarURL)
+}
+
+func mediaURLForRequest(c *gin.Context, value string) string {
+	if value == "" {
+		return value
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || !strings.HasPrefix(parsed.Path, "/uploads/") {
+		return value
+	}
+	if parsed.IsAbs() {
+		hostname := strings.ToLower(parsed.Hostname())
+		ip := net.ParseIP(hostname)
+		if hostname != "localhost" && (ip == nil || (!ip.IsLoopback() && !ip.IsPrivate() && !ip.IsUnspecified())) {
+			return value
+		}
+	}
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	} else if forwarded := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0]); forwarded == "http" || forwarded == "https" {
+		scheme = forwarded
+	}
+	return fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, parsed.RequestURI())
 }

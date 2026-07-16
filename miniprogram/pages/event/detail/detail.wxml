@@ -36,7 +36,10 @@
     <view class="block-title">发起人</view>
     <view class="between">
       <view class="row">
-        <view class="host-avatar">{{event.hostInitial}}</view>
+        <view class="host-avatar">
+          <image wx:if="{{event.hostAvatarUrl}}" class="avatar-image" mode="aspectFill" src="{{event.hostAvatarUrl}}" />
+          <text wx:else>{{event.hostInitial}}</text>
+        </view>
         <view>
           <view class="host-name">
             <text>{{event.host}}</text>

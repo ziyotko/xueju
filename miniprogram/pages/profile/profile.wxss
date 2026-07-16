@@ -158,6 +158,11 @@
   gap: 6rpx;
 }
 
+.tag-warning {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 .review-date {
   margin-top: 4rpx;
   color: #9aa3b7;
