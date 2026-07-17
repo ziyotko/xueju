@@ -117,7 +117,16 @@ npm run build
    npm run build
    ```
 
-   将 `admin/dist` 发布到静态 Web 服务，并把同域 `/api` 与 `/uploads` 转发到 API 服务。若管理端和 API 使用不同域名，需要额外配置受限 CORS；推荐保持同域。
+   将 `admin/dist` 发布到静态 Web 服务的 `/admin/` 目录，并把同域 `/api` 与 `/uploads` 转发到 API 服务。管理端入口为 `/admin/`，SPA 路由刷新必须回退到 `/admin/index.html`。若由外层 Nginx 代理 `admin` 容器，应保留路径前缀，例如：
+
+   ```nginx
+   location = /admin { return 301 /admin/; }
+   location /admin/ {
+     proxy_pass http://127.0.0.1:8081;
+   }
+   ```
+
+   `proxy_pass` 末尾不要添加 `/`，否则会剥离 `/admin/` 前缀。若管理端和 API 使用不同域名，需要额外配置受限 CORS；推荐保持同域。
 4. 小程序正式版把 HTTPS 域名配置为 request/download 合法域名，并通过 `extConfig.apiBaseUrl` 指向其 `/api` 路径。
 5. 生产环境仍会拒绝默认 JWT、默认后台账号、非 HTTPS 公网地址、未开启微信内容安全或未配置 S3 兼容对象存储的配置。
 6. 使用 `scripts/backup-mysql.ps1` 创建数据库备份，并由系统计划任务上传到异地存储；上线前必须在隔离数据库验证一次恢复流程。

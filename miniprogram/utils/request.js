@@ -25,9 +25,13 @@ function normalizeMediaUrls(value, apiBaseUrl, fieldName = "") {
   const match = value.match(/^https?:\/\/([^/]+)(\/uploads\/.*)$/i)
   if (!match) return value
   const host = match[1].split(":")[0].toLowerCase()
+  let apiHost = ""
+  try {
+    apiHost = apiOrigin.match(/^https?:\/\/([^/]+)/i)[1].split(":")[0].toLowerCase()
+  } catch (error) {}
   const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" ||
     /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-  return isLocalHost ? `${apiOrigin}${match[2]}` : value
+  return isLocalHost || host === apiHost ? `${apiOrigin}${match[2]}` : value
 }
 
 function currentPageUrl() {

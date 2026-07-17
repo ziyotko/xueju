@@ -502,9 +502,13 @@ func (h *AppHandler) CreateEvent(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "resort is required")
 		return
 	}
-	if req.ImageURL != "" && !h.isAllowedEventImage(userID, req.ImageURL) {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event image is not approved")
-		return
+	if req.ImageURL != "" {
+		approvedURL, approved := h.resolveAllowedEventImage(userID, req.ImageURL)
+		if !approved {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "活动图片未通过审核，请重新选择")
+			return
+		}
+		req.ImageURL = approvedURL
 	}
 	status := "recruiting"
 	if req.MaxMembers == 1 {
@@ -599,11 +603,7 @@ func (h *AppHandler) uploadImage(c *gin.Context, userID int64, folder string) {
 	path := "/uploads/" + folder + "/" + filename
 	publicURL := h.cfg.PublicBaseURL + path
 	if h.cfg.PublicBaseURL == "" {
-		scheme := "http"
-		if c.Request.TLS != nil {
-			scheme = "https"
-		}
-		publicURL = fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, path)
+		publicURL = fmt.Sprintf("%s://%s%s", requestScheme(c), c.Request.Host, path)
 	}
 	status := "approved"
 	reviewToken := ""
@@ -773,9 +773,13 @@ func (h *AppHandler) UpdateEvent(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "maxMembers cannot be smaller than currentMembers")
 		return
 	}
-	if req.ImageURL != "" && !h.isAllowedEventImage(userID, req.ImageURL) {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "event image is not approved")
-		return
+	if req.ImageURL != "" {
+		approvedURL, approved := h.resolveAllowedEventImage(userID, req.ImageURL)
+		if !approved {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "活动图片未通过审核，请重新选择")
+			return
+		}
+		req.ImageURL = approvedURL
 	}
 	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventTitle, req.Title); err != nil {
 		h.contentError(c, err)
@@ -2397,18 +2401,37 @@ func (h *AppHandler) isApprovedAvatar(userID int64, imageURL string) bool {
 	return count > 0
 }
 
-func (h *AppHandler) isAllowedEventImage(userID int64, imageURL string) bool {
-	var count int
-	_ = h.db.QueryRow(`SELECT COUNT(*) FROM media_uploads WHERE user_id=? AND kind='events' AND public_url=? AND status='approved'`, userID, imageURL).Scan(&count)
-	if count > 0 {
-		return true
+func (h *AppHandler) resolveAllowedEventImage(userID int64, imageURL string) (string, bool) {
+	if storageKey, ok := eventUploadStorageKey(imageURL); ok {
+		var approvedURL string
+		if err := h.db.QueryRow(`SELECT public_url FROM media_uploads WHERE user_id=? AND kind='events' AND path=? AND status='approved'`, userID, storageKey).Scan(&approvedURL); err == nil && approvedURL != "" {
+			return approvedURL, true
+		}
 	}
+
+	var count int
 	_ = h.db.QueryRow(`SELECT COUNT(*) FROM ski_resorts WHERE image_url=? AND status='normal'`, imageURL).Scan(&count)
 	if count > 0 {
-		return true
+		return imageURL, true
 	}
 	_ = h.db.QueryRow(`SELECT COUNT(*) FROM ski_events WHERE creator_id=? AND image_url=?`, userID, imageURL).Scan(&count)
-	return count > 0
+	return imageURL, count > 0
+}
+
+func eventUploadStorageKey(imageURL string) (string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(imageURL))
+	if err != nil {
+		return "", false
+	}
+	const prefix = "/uploads/events/"
+	if !strings.HasPrefix(parsed.Path, prefix) {
+		return "", false
+	}
+	filename := strings.TrimPrefix(parsed.Path, prefix)
+	if filename == "" || filename == "." || filename == ".." || strings.ContainsAny(filename, `/\`) {
+		return "", false
+	}
+	return filepath.ToSlash(filepath.Join("events", filename)), true
 }
 
 func (h *AppHandler) contentError(c *gin.Context, err error) {
@@ -2561,15 +2584,24 @@ func mediaURLForRequest(c *gin.Context, value string) string {
 	if parsed.IsAbs() {
 		hostname := strings.ToLower(parsed.Hostname())
 		ip := net.ParseIP(hostname)
-		if hostname != "localhost" && (ip == nil || (!ip.IsLoopback() && !ip.IsPrivate() && !ip.IsUnspecified())) {
+		requestHostname := strings.ToLower(c.Request.Host)
+		if host, _, splitErr := net.SplitHostPort(c.Request.Host); splitErr == nil {
+			requestHostname = strings.ToLower(host)
+		}
+		isLocal := hostname == "localhost" || (ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified()))
+		if !isLocal && hostname != requestHostname {
 			return value
 		}
 	}
-	scheme := "http"
+	return fmt.Sprintf("%s://%s%s", requestScheme(c), c.Request.Host, parsed.RequestURI())
+}
+
+func requestScheme(c *gin.Context) string {
 	if c.Request.TLS != nil {
-		scheme = "https"
-	} else if forwarded := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0]); forwarded == "http" || forwarded == "https" {
-		scheme = forwarded
+		return "https"
 	}
-	return fmt.Sprintf("%s://%s%s", scheme, c.Request.Host, parsed.RequestURI())
+	if forwarded := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0]); forwarded == "http" || forwarded == "https" {
+		return forwarded
+	}
+	return "http"
 }

@@ -12,6 +12,17 @@ export const http = axios.create({
   timeout: 10000
 })
 
+const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, "")
+const loginPath = `${appBasePath}/login`
+
+function currentAppRoute() {
+  let pathname = window.location.pathname
+  if (appBasePath && (pathname === appBasePath || pathname.startsWith(`${appBasePath}/`))) {
+    pathname = pathname.slice(appBasePath.length) || "/"
+  }
+  return pathname + window.location.search
+}
+
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem("xueju_admin_token")
   if (token) {
@@ -23,11 +34,11 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiBody<unknown>>) => {
-	if (error.response?.status === 401 && window.location.pathname !== "/login") {
+	if (error.response?.status === 401 && window.location.pathname !== loginPath) {
 	  localStorage.removeItem("xueju_admin_token")
 	  localStorage.removeItem("xueju_admin_user")
-	  const redirect = encodeURIComponent(window.location.pathname + window.location.search)
-	  window.location.assign(`/login?redirect=${redirect}`)
+	  const redirect = encodeURIComponent(currentAppRoute())
+	  window.location.assign(`${loginPath}?redirect=${redirect}`)
 	}
     const message = error.response?.data?.message || "网络连接失败"
     ElMessage.error(message)
