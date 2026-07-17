@@ -24,6 +24,21 @@ function isUploadedImageUrl(url = '') {
   return /^https?:\/\//.test(url) && !/^https?:\/\/tmp\//.test(url)
 }
 
+function isPastStartTime(date, time, now = new Date()) {
+  const match = `${date || ''} ${time || ''}`.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/)
+  if (!match) return false
+  const start = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    0,
+    0
+  )
+  return start.getTime() < now.getTime()
+}
+
 Page({
   data: {
     eventId: 0,
@@ -236,6 +251,10 @@ Page({
   async submit() {
 	if (this.data.submitting) return
     const f = this.data.form
+	if (f.date && f.time && isPastStartTime(f.date, f.time)) {
+	  wx.showToast({ title: '集合时间已过，请选择未来的日期或时间', icon: 'none' })
+	  return
+	}
     if (!f.resort || !f.date || !f.depart || !f.meetPlace) {
       wx.showToast({ title: '请完善基本信息', icon: 'none' })
       return

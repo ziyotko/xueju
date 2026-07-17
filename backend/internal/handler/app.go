@@ -1944,28 +1944,11 @@ func validateEventRequest(req eventRequest, currentMembers int) string {
 	if req.MaxMembers < currentMembers || req.MaxMembers > 20 {
 		return "maxMembers must include current members and be between 1 and 20"
 	}
-	date, err := time.Parse("2006-01-02", req.EventDate)
-	if err != nil {
-		return "eventDate must use YYYY-MM-DD"
-	}
-	today, _ := time.ParseInLocation("2006-01-02", time.Now().Format("2006-01-02"), time.Local)
-	if date.Before(today) {
-		return "eventDate cannot be in the past"
+	if message := validateEventSchedule(req.EventDate, req.StartTime, time.Now(), time.Local); message != "" {
+		return message
 	}
 	if strings.TrimSpace(req.DepartCity) == "" || strings.TrimSpace(req.DepartArea) == "" || strings.TrimSpace(req.MeetPlace) == "" {
 		return "departure and meeting place are required"
-	}
-	if req.StartTime != "" {
-		startTime, err := time.ParseInLocation("2006-01-02 15:04:05", req.StartTime, time.Local)
-		if err != nil {
-			return "startTime must use YYYY-MM-DD HH:mm:ss"
-		}
-		if startTime.Format("2006-01-02") != req.EventDate {
-			return "startTime must match eventDate"
-		}
-		if startTime.Before(time.Now()) {
-			return "startTime cannot be in the past"
-		}
 	}
 	if !stringIn(req.SkiTypeReq, "snowboard", "ski", "both") {
 		return "invalid skiTypeReq"
@@ -1975,6 +1958,37 @@ func validateEventRequest(req eventRequest, currentMembers int) string {
 	}
 	if !stringIn(req.TrafficType, "self_drive", "high_speed_rail", "bus", "other") {
 		return "invalid trafficType"
+	}
+	return ""
+}
+
+func validateEventSchedule(eventDate, startTime string, now time.Time, location *time.Location) string {
+	if location == nil {
+		location = time.Local
+	}
+	now = now.In(location)
+	date, err := time.ParseInLocation("2006-01-02", eventDate, location)
+	if err != nil {
+		return "出发日期格式不正确"
+	}
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+	if date.Before(today) {
+		return "出发日期不能早于今天"
+	}
+	if strings.TrimSpace(startTime) == "" {
+		return ""
+	}
+	parsedStartTime, err := time.ParseInLocation("2006-01-02 15:04:05", startTime, location)
+	if err != nil {
+		return "集合时间格式不正确"
+	}
+	if parsedStartTime.Format("2006-01-02") != eventDate {
+		return "集合时间必须与出发日期一致"
+	}
+	// A future calendar date is valid regardless of the selected time of day.
+	// Only a same-day event needs comparison with the current wall clock.
+	if date.Equal(today) && parsedStartTime.Before(now) {
+		return "集合时间已过，请选择未来的日期或时间"
 	}
 	return ""
 }

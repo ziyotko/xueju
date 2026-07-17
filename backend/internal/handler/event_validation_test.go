@@ -58,3 +58,19 @@ func TestTextListWithinLimitsItemsAndRunes(t *testing.T) {
 		t.Fatal("oversized tag was accepted")
 	}
 }
+
+func TestValidateEventScheduleAcceptsFutureDateWithMorningTime(t *testing.T) {
+	location := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 7, 17, 11, 25, 0, 0, location)
+	if message := validateEventSchedule("2026-07-20", "2026-07-20 07:20:00", now, location); message != "" {
+		t.Fatalf("future event was rejected: %s", message)
+	}
+}
+
+func TestValidateEventScheduleRejectsPastTimeOnSameDay(t *testing.T) {
+	location := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 7, 17, 11, 25, 0, 0, location)
+	if message := validateEventSchedule("2026-07-17", "2026-07-17 07:20:00", now, location); message != "集合时间已过，请选择未来的日期或时间" {
+		t.Fatalf("unexpected validation message: %s", message)
+	}
+}
