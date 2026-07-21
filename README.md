@@ -128,7 +128,7 @@ npm run build
 
    `proxy_pass` 末尾不要添加 `/`，否则会剥离 `/admin/` 前缀。若管理端和 API 使用不同域名，需要额外配置受限 CORS；推荐保持同域。
 4. 小程序正式版把 HTTPS 域名配置为 request/download 合法域名，并通过 `extConfig.apiBaseUrl` 指向其 `/api` 路径。
-5. 生产环境仍会拒绝默认 JWT、默认后台账号、非 HTTPS 公网地址、未开启内容安全或未配置 S3 兼容对象存储的配置。
+5. 生产环境仍会拒绝默认 JWT、默认后台账号、非 HTTPS 公网地址或未开启内容安全的配置。存储可使用 S3 兼容对象存储；单机部署也可使用本地存储，但 `UPLOAD_DIR` 必须是绝对路径，并且需要与数据库一起备份。
 6. 使用 `scripts/backup-mysql.ps1` 创建数据库备份，并由系统计划任务上传到异地存储；上线前必须在隔离数据库验证一次恢复流程。
 
 开发环境也可以使用 `scripts/start-backend.sh`、`scripts/start-admin.sh`；Windows PowerShell 使用同名 `.ps1` 脚本。Docker 文件仅作为可选部署参考，不是运行本工程的前置条件。

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -142,8 +143,17 @@ func (c Config) Validate() error {
 	if c.PublicBaseURL == "" || !strings.HasPrefix(c.PublicBaseURL, "https://") {
 		problems = append(problems, "PUBLIC_BASE_URL must be an https URL")
 	}
-	if c.StorageDriver != "s3" || !strings.HasPrefix(c.S3Endpoint, "https://") || c.S3Bucket == "" || c.S3AccessKey == "" || c.S3SecretKey == "" {
-		problems = append(problems, "production requires STORAGE_DRIVER=s3 and complete S3-compatible storage settings")
+	switch strings.ToLower(strings.TrimSpace(c.StorageDriver)) {
+	case "local":
+		if strings.TrimSpace(c.UploadDir) == "" || !filepath.IsAbs(c.UploadDir) {
+			problems = append(problems, "production local storage requires an absolute UPLOAD_DIR")
+		}
+	case "s3":
+		if !strings.HasPrefix(c.S3Endpoint, "https://") || c.S3Bucket == "" || c.S3AccessKey == "" || c.S3SecretKey == "" {
+			problems = append(problems, "production S3 storage requires an HTTPS endpoint, bucket, access key and secret key")
+		}
+	default:
+		problems = append(problems, "STORAGE_DRIVER must be local or s3")
 	}
 	if c.AliyunAccessKeyID == "" || c.AliyunAccessKeySecret == "" || c.AliyunSmsSignName == "" || c.AliyunSmsTemplateCode == "" {
 		problems = append(problems, "Aliyun SMS verification credentials, sign name and template code are required")

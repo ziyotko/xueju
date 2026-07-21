@@ -1,5 +1,8 @@
 const api = require('../../../utils/api')
 
+const skiTypeText = { snowboard: '单板', ski: '双板', both: '单双板' }
+const skiLevelText = { beginner: '新手', primary: '初级', intermediate: '中级', advanced: '高级' }
+
 Page({
   data: {
     eventId: 1,
@@ -28,7 +31,10 @@ Page({
       const requests = await api.applications(this.data.eventId)
       this.setData({ requests: requests.map((item) => {
         const name = item.name || item.nickname || '雪友'
-        return { ...item, initial: item.initial || name.slice(0, 1), statusLabel: this.data.statusText[item.status] || '待审核' }
+        const skiType = skiTypeText[item.skiType] || item.skiType || ''
+        const skiLevel = skiLevelText[item.level] || skiLevelText[item.skiLevel] || item.level || item.skiLevel || ''
+        const metaText = [skiType, skiLevel, item.departArea].filter(Boolean).join(' · ')
+        return { ...item, initial: item.initial || name.slice(0, 1), metaText, statusLabel: this.data.statusText[item.status] || '待审核' }
       }) })
     } catch (error) {
       this.setData({ requests: [] })

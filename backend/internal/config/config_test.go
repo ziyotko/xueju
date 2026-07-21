@@ -32,6 +32,28 @@ func TestValidateAcceptsHardenedProductionConfig(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsProductionLocalStorageWithAbsolutePath(t *testing.T) {
+	cfg := validProductionConfig()
+	cfg.StorageDriver = "local"
+	cfg.UploadDir = t.TempDir()
+	cfg.S3Endpoint = ""
+	cfg.S3Bucket = ""
+	cfg.S3AccessKey = ""
+	cfg.S3SecretKey = ""
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+}
+
+func TestValidateRejectsProductionLocalStorageWithRelativePath(t *testing.T) {
+	cfg := validProductionConfig()
+	cfg.StorageDriver = "local"
+	cfg.UploadDir = "uploads"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected relative production upload directory to be rejected")
+	}
+}
+
 func TestValidateRejectsUnknownTimezone(t *testing.T) {
 	cfg := Config{AppEnv: "development", Timezone: "Mars/Olympus_Mons"}
 	if err := cfg.Validate(); err == nil {

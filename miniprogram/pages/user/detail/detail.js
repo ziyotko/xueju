@@ -8,8 +8,10 @@ function displayName(user) {
 }
 
 function displayLevel(user) {
-  if (user.level) return user.level
-  return [skiTypeText[user.skiType] || user.skiType, levelText[user.skiLevel] || user.skiLevel].filter(Boolean).join(' · ') || '滑雪资料待完善'
+  const skiType = skiTypeText[user.skiType] || user.skiType || ''
+  const rawLevel = user.skiLevel || user.level || ''
+  const skiLevel = levelText[rawLevel] || rawLevel
+  return [skiType, skiLevel].filter(Boolean).join(' · ') || '滑雪资料待完善'
 }
 
 function currentUserId() {

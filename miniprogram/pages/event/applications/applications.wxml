@@ -13,7 +13,7 @@
         </view>
         <view class="person-main">
           <view class="person-name">{{item.name}} <text>{{item.credit}}</text></view>
-          <view class="person-meta">{{item.skiType}} · {{item.level}} · {{item.departArea}}</view>
+          <view wx:if="{{item.metaText}}" class="person-meta">{{item.metaText}}</view>
         </view>
       </view>
       <view class="status status-{{item.status}}">{{item.statusLabel}}</view>
