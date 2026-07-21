@@ -12,78 +12,92 @@ import (
 )
 
 type Config struct {
-	AppName                string
-	AppEnv                 string
-	Port                   string
-	Timezone               string
-	MySQLDSN               string
-	JWTSecret              string
-	JWTExpiresHours        int
-	WechatAppID            string
-	WechatAppSecret        string
-	ContentSecurity        bool
-	MediaCallbackToken     string
-	AdminUsername          string
-	AdminPassword          string
-	PublicBaseURL          string
-	UploadDir              string
-	StorageDriver          string
-	S3Endpoint             string
-	S3Bucket               string
-	S3Region               string
-	S3AccessKey            string
-	S3SecretKey            string
-	AliyunAccessKeyID      string
-	AliyunAccessKeySecret  string
-	AliyunSmsSignName      string
-	AliyunSmsTemplateCode  string
-	AliyunSmsSchemeName    string
-	PhoneEncryptionKey     string
-	PhoneHashSecret        string
-	SmsCodeExpireSeconds   int
-	SmsSendIntervalSeconds int
-	SmsDailyLimitPerPhone  int
-	SmsDailyLimitPerUser   int
-	SmsHourlyLimitPerIP    int
+	AppName                      string
+	AppEnv                       string
+	Port                         string
+	Timezone                     string
+	MySQLDSN                     string
+	JWTSecret                    string
+	JWTExpiresHours              int
+	WechatAppID                  string
+	WechatAppSecret              string
+	ContentSecurity              bool
+	ContentSecurityProvider      string
+	MediaCallbackToken           string
+	AdminUsername                string
+	AdminPassword                string
+	PublicBaseURL                string
+	UploadDir                    string
+	StorageDriver                string
+	S3Endpoint                   string
+	S3Bucket                     string
+	S3Region                     string
+	S3AccessKey                  string
+	S3SecretKey                  string
+	AliyunAccessKeyID            string
+	AliyunAccessKeySecret        string
+	AliyunContentAccessKeyID     string
+	AliyunContentAccessKeySecret string
+	AliyunContentEndpoint        string
+	AliyunTextService            string
+	AliyunAvatarImageService     string
+	AliyunEventImageService      string
+	AliyunSmsSignName            string
+	AliyunSmsTemplateCode        string
+	AliyunSmsSchemeName          string
+	PhoneEncryptionKey           string
+	PhoneHashSecret              string
+	SmsCodeExpireSeconds         int
+	SmsSendIntervalSeconds       int
+	SmsDailyLimitPerPhone        int
+	SmsDailyLimitPerUser         int
+	SmsHourlyLimitPerIP          int
 }
 
 func Load() Config {
 	loadEnv(".env", "../.env", "../../.env")
 
 	return Config{
-		AppName:                getEnv("APP_NAME", "xueju-api"),
-		AppEnv:                 getEnv("APP_ENV", "development"),
-		Port:                   getEnv("APP_PORT", "8080"),
-		Timezone:               getEnv("APP_TIMEZONE", "Asia/Shanghai"),
-		MySQLDSN:               getEnv("MYSQL_DSN", ""),
-		JWTSecret:              getEnv("JWT_SECRET", "xueju-dev-secret"),
-		JWTExpiresHours:        getEnvAsInt("JWT_EXPIRES_HOURS", 168),
-		WechatAppID:            getEnv("WECHAT_APP_ID", ""),
-		WechatAppSecret:        getEnv("WECHAT_APP_SECRET", ""),
-		ContentSecurity:        getEnvAsBool("WECHAT_CONTENT_SECURITY_ENABLED", false),
-		MediaCallbackToken:     getEnv("WECHAT_MEDIA_CALLBACK_TOKEN", ""),
-		AdminUsername:          getEnv("ADMIN_USERNAME", "admin"),
-		AdminPassword:          getEnv("ADMIN_PASSWORD", "xueju-admin"),
-		PublicBaseURL:          strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
-		UploadDir:              getEnv("UPLOAD_DIR", "uploads"),
-		StorageDriver:          getEnv("STORAGE_DRIVER", "local"),
-		S3Endpoint:             strings.TrimRight(getEnv("S3_ENDPOINT", ""), "/"),
-		S3Bucket:               getEnv("S3_BUCKET", ""),
-		S3Region:               getEnv("S3_REGION", "us-east-1"),
-		S3AccessKey:            getEnv("S3_ACCESS_KEY", ""),
-		S3SecretKey:            getEnv("S3_SECRET_KEY", ""),
-		AliyunAccessKeyID:      getEnv("ALIYUN_ACCESS_KEY_ID", ""),
-		AliyunAccessKeySecret:  getEnv("ALIYUN_ACCESS_KEY_SECRET", ""),
-		AliyunSmsSignName:      getEnv("ALIYUN_SMS_VERIFY_SIGN_NAME", ""),
-		AliyunSmsTemplateCode:  getEnv("ALIYUN_SMS_VERIFY_TEMPLATE_CODE", ""),
-		AliyunSmsSchemeName:    getEnv("ALIYUN_SMS_VERIFY_SCHEME_NAME", ""),
-		PhoneEncryptionKey:     getEnv("PHONE_ENCRYPTION_KEY", ""),
-		PhoneHashSecret:        getEnv("PHONE_HASH_SECRET", ""),
-		SmsCodeExpireSeconds:   getEnvAsInt("SMS_CODE_EXPIRE_SECONDS", 300),
-		SmsSendIntervalSeconds: getEnvAsInt("SMS_SEND_INTERVAL_SECONDS", 60),
-		SmsDailyLimitPerPhone:  getEnvAsInt("SMS_DAILY_LIMIT_PER_PHONE", 10),
-		SmsDailyLimitPerUser:   getEnvAsInt("SMS_DAILY_LIMIT_PER_USER", 10),
-		SmsHourlyLimitPerIP:    getEnvAsInt("SMS_HOURLY_LIMIT_PER_IP", 30),
+		AppName:                      getEnv("APP_NAME", "xueju-api"),
+		AppEnv:                       getEnv("APP_ENV", "development"),
+		Port:                         getEnv("APP_PORT", "8080"),
+		Timezone:                     getEnv("APP_TIMEZONE", "Asia/Shanghai"),
+		MySQLDSN:                     getEnv("MYSQL_DSN", ""),
+		JWTSecret:                    getEnv("JWT_SECRET", "xueju-dev-secret"),
+		JWTExpiresHours:              getEnvAsInt("JWT_EXPIRES_HOURS", 168),
+		WechatAppID:                  getEnv("WECHAT_APP_ID", ""),
+		WechatAppSecret:              getEnv("WECHAT_APP_SECRET", ""),
+		ContentSecurity:              getEnvAsBool("CONTENT_SECURITY_ENABLED", getEnvAsBool("WECHAT_CONTENT_SECURITY_ENABLED", false)),
+		ContentSecurityProvider:      strings.ToLower(strings.TrimSpace(getEnv("CONTENT_SECURITY_PROVIDER", "wechat"))),
+		MediaCallbackToken:           getEnv("WECHAT_MEDIA_CALLBACK_TOKEN", ""),
+		AdminUsername:                getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:                getEnv("ADMIN_PASSWORD", "xueju-admin"),
+		PublicBaseURL:                strings.TrimRight(getEnv("PUBLIC_BASE_URL", ""), "/"),
+		UploadDir:                    getEnv("UPLOAD_DIR", "uploads"),
+		StorageDriver:                getEnv("STORAGE_DRIVER", "local"),
+		S3Endpoint:                   strings.TrimRight(getEnv("S3_ENDPOINT", ""), "/"),
+		S3Bucket:                     getEnv("S3_BUCKET", ""),
+		S3Region:                     getEnv("S3_REGION", "us-east-1"),
+		S3AccessKey:                  getEnv("S3_ACCESS_KEY", ""),
+		S3SecretKey:                  getEnv("S3_SECRET_KEY", ""),
+		AliyunAccessKeyID:            getEnv("ALIYUN_ACCESS_KEY_ID", ""),
+		AliyunAccessKeySecret:        getEnv("ALIYUN_ACCESS_KEY_SECRET", ""),
+		AliyunContentAccessKeyID:     getEnv("ALIYUN_CONTENT_SECURITY_ACCESS_KEY_ID", getEnv("ALIYUN_ACCESS_KEY_ID", "")),
+		AliyunContentAccessKeySecret: getEnv("ALIYUN_CONTENT_SECURITY_ACCESS_KEY_SECRET", getEnv("ALIYUN_ACCESS_KEY_SECRET", "")),
+		AliyunContentEndpoint:        getEnv("ALIYUN_CONTENT_SECURITY_ENDPOINT", "green-cip.cn-shanghai.aliyuncs.com"),
+		AliyunTextService:            getEnv("ALIYUN_TEXT_MODERATION_SERVICE", "ugc_moderation_byllm_pro"),
+		AliyunAvatarImageService:     getEnv("ALIYUN_AVATAR_IMAGE_SERVICE", "profilePhotoCheck"),
+		AliyunEventImageService:      getEnv("ALIYUN_EVENT_IMAGE_SERVICE", "postImageCheck"),
+		AliyunSmsSignName:            getEnv("ALIYUN_SMS_VERIFY_SIGN_NAME", ""),
+		AliyunSmsTemplateCode:        getEnv("ALIYUN_SMS_VERIFY_TEMPLATE_CODE", ""),
+		AliyunSmsSchemeName:          getEnv("ALIYUN_SMS_VERIFY_SCHEME_NAME", ""),
+		PhoneEncryptionKey:           getEnv("PHONE_ENCRYPTION_KEY", ""),
+		PhoneHashSecret:              getEnv("PHONE_HASH_SECRET", ""),
+		SmsCodeExpireSeconds:         getEnvAsInt("SMS_CODE_EXPIRE_SECONDS", 300),
+		SmsSendIntervalSeconds:       getEnvAsInt("SMS_SEND_INTERVAL_SECONDS", 60),
+		SmsDailyLimitPerPhone:        getEnvAsInt("SMS_DAILY_LIMIT_PER_PHONE", 10),
+		SmsDailyLimitPerUser:         getEnvAsInt("SMS_DAILY_LIMIT_PER_USER", 10),
+		SmsHourlyLimitPerIP:          getEnvAsInt("SMS_HOURLY_LIMIT_PER_IP", 30),
 	}
 }
 
@@ -107,10 +121,20 @@ func (c Config) Validate() error {
 		problems = append(problems, "WECHAT_APP_ID and WECHAT_APP_SECRET are required")
 	}
 	if !c.ContentSecurity {
-		problems = append(problems, "WECHAT_CONTENT_SECURITY_ENABLED must be true")
-	}
-	if len(c.MediaCallbackToken) < 24 {
-		problems = append(problems, "WECHAT_MEDIA_CALLBACK_TOKEN must be at least 24 characters")
+		problems = append(problems, "CONTENT_SECURITY_ENABLED must be true")
+	} else {
+		switch c.ContentSecurityProvider {
+		case "aliyun":
+			if c.AliyunContentAccessKeyID == "" || c.AliyunContentAccessKeySecret == "" || c.AliyunContentEndpoint == "" || c.AliyunTextService == "" || c.AliyunAvatarImageService == "" || c.AliyunEventImageService == "" {
+				problems = append(problems, "Aliyun content security credentials, endpoint and service codes are required")
+			}
+		case "wechat":
+			if len(c.MediaCallbackToken) < 24 {
+				problems = append(problems, "WECHAT_MEDIA_CALLBACK_TOKEN must be at least 24 characters")
+			}
+		default:
+			problems = append(problems, "CONTENT_SECURITY_PROVIDER must be aliyun or wechat")
+		}
 	}
 	if c.AdminUsername == "admin" || c.AdminPassword == "xueju-admin" || len(c.AdminPassword) < 12 {
 		problems = append(problems, "ADMIN_USERNAME and ADMIN_PASSWORD must not use development defaults")

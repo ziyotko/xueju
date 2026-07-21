@@ -4,9 +4,6 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"fmt"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -536,41 +533,20 @@ func (h *AdminHandler) UploadResortImage(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片不能超过 5MB")
 		return
 	}
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "仅支持 JPG、JPEG、PNG 图片")
-		return
-	}
 	source, err := file.Open()
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法读取图片")
 		return
 	}
 	defer source.Close()
-	header := make([]byte, 512)
-	n, _ := source.Read(header)
-	mimeType := http.DetectContentType(header[:n])
-	validMime := (ext == ".png" && mimeType == "image/png") || ((ext == ".jpg" || ext == ".jpeg") && mimeType == "image/jpeg")
-	if !validMime {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片扩展名与内容不匹配")
-		return
-	}
-	if _, err := source.Seek(0, 0); err != nil {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法检查图片")
-		return
-	}
-	imageConfig, _, err := image.DecodeConfig(source)
-	if err != nil || imageConfig.Width < 1 || imageConfig.Height < 1 || imageConfig.Width > 12000 || imageConfig.Height > 12000 {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片内容无效")
-		return
-	}
-	if _, err := source.Seek(0, 0); err != nil {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法读取图片")
-		return
-	}
 	data, err := io.ReadAll(io.LimitReader(source, 5*1024*1024+1))
 	if err != nil || len(data) > 5*1024*1024 {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "无法读取图片")
+		return
+	}
+	ext, mimeType, err := inspectImageUpload(data)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片格式不受支持，请选择 JPG 或 PNG 图片")
 		return
 	}
 

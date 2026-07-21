@@ -2,7 +2,7 @@
 // origins. Keep release empty in source control so a production package can
 // never silently fall back to a development address.
 module.exports = {
-  develop: "https://www.xueju.xyz/api",
-  trial: "https://www.xueju.xyz/api",
-  release: ""
+	develop: "http://127.0.0.1:8080/api",
+	trial: "https://www.xueju.xyz/api",
+	release: ""
 }

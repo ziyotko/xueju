@@ -8,9 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
 	"net"
 	"net/http"
@@ -555,44 +552,59 @@ func (h *AppHandler) uploadImage(c *gin.Context, userID int64, folder string) {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "image must be smaller than 5MB")
 		return
 	}
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unsupported image type")
-		return
-	}
 	source, err := file.Open()
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot read image")
 		return
 	}
 	defer source.Close()
-	buffer := make([]byte, 512)
-	n, _ := source.Read(buffer)
-	mimeType := http.DetectContentType(buffer[:n])
-	validMime := (ext == ".png" && mimeType == "image/png") || ((ext == ".jpg" || ext == ".jpeg") && mimeType == "image/jpeg")
-	if !validMime {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "image extension and content do not match")
-		return
-	}
-	if _, err := source.Seek(0, 0); err != nil {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot inspect image")
-		return
-	}
-	imageConfig, _, err := image.DecodeConfig(source)
-	if err != nil || imageConfig.Width < 1 || imageConfig.Height < 1 || imageConfig.Width > 12000 || imageConfig.Height > 12000 {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid image content")
-		return
-	}
-
-	filename := fmt.Sprintf("%d-%d%s", userID, time.Now().UnixNano(), ext)
-	if _, err := source.Seek(0, 0); err != nil {
-		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot read image")
-		return
-	}
 	data, err := io.ReadAll(io.LimitReader(source, 5*1024*1024+1))
 	if err != nil || len(data) > 5*1024*1024 {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot read image")
 		return
+	}
+	ext, mimeType, err := inspectImageUpload(data)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "图片格式不受支持，请选择 JPG 或 PNG 图片")
+		return
+	}
+	filename := fmt.Sprintf("%d-%d%s", userID, time.Now().UnixNano(), ext)
+	status := string(compliance.ModerationApproved)
+	reviewToken := ""
+	traceID := ""
+	reviewResult := ""
+	if h.cfg.ContentSecurity {
+		switch h.security.Provider() {
+		case "aliyun":
+			var openid string
+			_ = h.db.QueryRow(`SELECT openid FROM users WHERE id=?`, userID).Scan(&openid)
+			moderation, checkErr := h.security.CheckImage(c.Request.Context(), contentsecurity.ImageCheckRequest{
+				Kind: folder, Filename: filename, Data: data, AccountID: openid,
+			})
+			if checkErr != nil {
+				status = string(compliance.ModerationPending)
+				reviewResult = "aliyun:provider_error"
+			} else {
+				status = string(moderation.Status)
+				traceID = moderation.RequestID
+				reviewResult = moderation.ReviewResult
+				if moderation.Status == compliance.ModerationRejected {
+					response.ContentRisk(c)
+					return
+				}
+			}
+		case "wechat":
+			status = string(compliance.ModerationPending)
+			random := make([]byte, 24)
+			if _, err := rand.Read(random); err != nil {
+				response.Error(c, http.StatusInternalServerError, response.CodeServerError, "cannot create media review token")
+				return
+			}
+			reviewToken = hex.EncodeToString(random)
+		default:
+			response.Error(c, http.StatusBadGateway, response.CodeServerError, "content security provider is not configured")
+			return
+		}
 	}
 	storageKey := filepath.ToSlash(filepath.Join(folder, filename))
 	if err := h.storage.Put(c.Request.Context(), storageKey, data, mimeType); err != nil {
@@ -605,26 +617,14 @@ func (h *AppHandler) uploadImage(c *gin.Context, userID int64, folder string) {
 	if h.cfg.PublicBaseURL == "" {
 		publicURL = fmt.Sprintf("%s://%s%s", requestScheme(c), c.Request.Host, path)
 	}
-	status := "approved"
-	reviewToken := ""
-	if h.cfg.ContentSecurity {
-		status = "pending"
-		random := make([]byte, 24)
-		if _, err := rand.Read(random); err != nil {
-			_ = h.storage.Delete(c.Request.Context(), storageKey)
-			response.Error(c, http.StatusInternalServerError, response.CodeServerError, "cannot create media review token")
-			return
-		}
-		reviewToken = hex.EncodeToString(random)
-	}
-	result, err := h.db.Exec(`INSERT INTO media_uploads (user_id, kind, path, public_url, review_token, mime_type, status) VALUES (?, ?, ?, ?, ?, ?, ?)`, userID, folder, storageKey, publicURL, reviewToken, mimeType, status)
+	result, err := h.db.Exec(`INSERT INTO media_uploads (user_id, kind, path, public_url, review_token, trace_id, mime_type, status, review_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, userID, folder, storageKey, publicURL, reviewToken, traceID, mimeType, status, reviewResult)
 	if err != nil {
 		_ = h.storage.Delete(c.Request.Context(), storageKey)
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
 	}
 	uploadID, _ := result.LastInsertId()
-	if h.cfg.ContentSecurity {
+	if h.cfg.ContentSecurity && h.security.Provider() == "wechat" {
 		var openid string
 		_ = h.db.QueryRow(`SELECT openid FROM users WHERE id=?`, userID).Scan(&openid)
 		reviewURL := publicURL + "?reviewToken=" + reviewToken

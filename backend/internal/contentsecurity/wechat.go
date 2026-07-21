@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,8 @@ const (
 type Service struct {
 	cfg        config.Config
 	httpClient *http.Client
+	aliyun     *aliyunService
+	aliyunErr  error
 	mu         sync.Mutex
 	token      string
 	expiresAt  time.Time
@@ -44,18 +47,35 @@ type MediaCheckRequest struct {
 }
 
 func New(cfg config.Config) *Service {
-	return &Service{
+	service := &Service{
 		cfg: cfg,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
+	if service.Provider() == "aliyun" {
+		service.aliyun, service.aliyunErr = newAliyunService(cfg)
+	}
+	return service
 }
 
 func (s *Service) CheckText(ctx context.Context, req TextCheckRequest) error {
 	if req.Content == "" || !s.enabled() {
 		return nil
 	}
+	if s.Provider() == "aliyun" {
+		if s.aliyunErr != nil {
+			return s.aliyunErr
+		}
+		return s.aliyun.checkText(ctx, req)
+	}
+	if s.Provider() != "wechat" {
+		return fmt.Errorf("unsupported content security provider %q", s.Provider())
+	}
+	return s.checkWechatText(ctx, req)
+}
+
+func (s *Service) checkWechatText(ctx context.Context, req TextCheckRequest) error {
 
 	accessToken, err := s.accessToken(ctx)
 	if err != nil {
@@ -77,7 +97,7 @@ func (s *Service) CheckText(ctx context.Context, req TextCheckRequest) error {
 }
 
 func (s *Service) CheckMediaAsync(ctx context.Context, req MediaCheckRequest) (string, error) {
-	if req.MediaURL == "" || !s.enabled() {
+	if req.MediaURL == "" || !s.enabled() || s.Provider() != "wechat" {
 		return "", nil
 	}
 
@@ -105,7 +125,18 @@ func (s *Service) CheckMediaAsync(ctx context.Context, req MediaCheckRequest) (s
 }
 
 func (s *Service) enabled() bool {
-	return s.cfg.ContentSecurity && s.cfg.WechatAppID != "" && s.cfg.WechatAppSecret != ""
+	return s != nil && s.cfg.ContentSecurity
+}
+
+func (s *Service) Provider() string {
+	if s == nil {
+		return ""
+	}
+	provider := strings.ToLower(strings.TrimSpace(s.cfg.ContentSecurityProvider))
+	if provider == "" {
+		return "wechat"
+	}
+	return provider
 }
 
 func (s *Service) accessToken(ctx context.Context) (string, error) {
