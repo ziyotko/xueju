@@ -224,8 +224,12 @@ func (r secCheckResponse) toError() error {
 	if r.ErrCode != 0 {
 		return fmt.Errorf("wechat content security error %d: %s", r.ErrCode, r.ErrMsg)
 	}
-	if r.Result.Suggest == "risky" {
+	switch r.Result.Suggest {
+	case "pass":
+		return nil
+	case "risky", "review":
 		return errors.New(compliance.ContentRiskMessage)
+	default:
+		return fmt.Errorf("wechat content security returned an unknown suggestion %q", r.Result.Suggest)
 	}
-	return nil
 }

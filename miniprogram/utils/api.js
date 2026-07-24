@@ -82,18 +82,18 @@ function mapEvent(item) {
 function eventPayload(form) {
   const resort = form.resort || ''
   const date = /^\d{4}-\d{2}-\d{2}$/.test(form.date || '') ? form.date : ''
-  const time = form.time || '06:30'
+  const time = form.time || ''
   return {
     title: form.title || `${resort}滑雪局`,
     resortId: Number(form.resortId || 0),
     resortName: resort,
     eventDate: date,
-    startTime: date ? `${date} ${time}:00` : '',
-    departCity: form.departCity || '北京',
+    startTime: date && time ? `${date} ${time}:00` : '',
+    departCity: form.departCity || '',
     departArea: form.departArea || form.depart || '',
     meetPlace: form.meetPlace || '',
     trafficType: form.trafficType || 'self_drive',
-    maxMembers: Number(form.people || form.maxMembers || 4),
+    maxMembers: Number(form.people || form.maxMembers || 1),
     skiTypeReq: form.skiTypeReq || 'snowboard',
     levelReq: form.levelReq || 'intermediate',
     purposeTags: form.purposeTags || [form.style || '刷道'],

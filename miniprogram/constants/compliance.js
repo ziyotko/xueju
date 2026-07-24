@@ -1,5 +1,5 @@
 const CONTENT_RISK_CODE = 40010
-const CONTENT_RISK_MESSAGE = "内容可能包含不适宜信息，请修改后重试"
+const CONTENT_RISK_MESSAGE = "你发布的内容含有违规信息，请修改后重试"
 
 const PRODUCT_POSITIONING = "滑雪行程组局工具"
 
@@ -18,4 +18,3 @@ module.exports = {
   PRODUCT_POSITIONING,
   DISALLOWED_FEATURES
 }
-

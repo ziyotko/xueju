@@ -89,40 +89,54 @@
 }
 
 .form-row {
-  min-height: 82rpx;
+  min-height: 88rpx;
   display: flex;
   align-items: center;
-  border-top: 2rpx solid #f2f5fb;
+  justify-content: space-between;
+  border-bottom: 2rpx solid #f1f4fa;
   color: #222b3f;
-  font-size: 25rpx;
-  font-weight: 650;
+  font-size: 26rpx;
+  font-weight: 700;
 }
 
-.form-row:first-of-type {
-  border-top: 0;
+.form-row.people-row {
+  border-bottom: 0;
+}
+
+.form-label {
+  flex-shrink: 0;
 }
 
 .row-value {
-  margin-left: auto;
-  color: #a0a8b9;
+  min-width: 0;
+  margin-left: 24rpx;
+  color: #94a3b8;
   font-size: 24rpx;
   font-weight: 500;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4rpx;
+  text-align: right;
 }
 
-.people-row {
+.row-value.has-value {
+  color: #111827;
+}
+
+.people-value {
+  min-width: 0;
+  margin-left: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 16rpx;
 }
 
-.people-control {
-  margin-left: auto;
-}
-
 .people-hint {
-  color: #a0a8b9;
+  color: #94a3b8;
   font-size: 22rpx;
+  font-weight: 500;
 }
 
 .field-title {
@@ -189,10 +203,18 @@
 }
 
 .form-input {
-  max-width: 360rpx;
+  flex: 1;
+  min-width: 0;
+  margin-left: 24rpx;
   color: #111827;
   font-size: 24rpx;
+  font-weight: 500;
   text-align: right;
+}
+
+.form-input-placeholder {
+  color: #94a3b8;
+  font-weight: 500;
 }
 
 .contact-tip {

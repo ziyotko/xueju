@@ -26,6 +26,7 @@ func New(cfg config.Config, db *sql.DB) *gin.Engine {
 	r.GET("/uploads/:folder/:name", appHandler.ServeUpload)
 
 	api.POST("/auth/wechat-login", appHandler.WechatLogin)
+	api.GET("/callbacks/wechat/media", appHandler.MediaReviewCallback)
 	api.POST("/callbacks/wechat/media", appHandler.MediaReviewCallback)
 	api.POST("/admin/auth/login", middleware.RateLimit(10, 5*time.Minute), adminHandler.Login)
 	api.GET("/events", appHandler.Events)

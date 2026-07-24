@@ -8,12 +8,11 @@ import (
 func validProductionConfig() Config {
 	return Config{
 		AppEnv: "production", MySQLDSN: "user:pass@tcp(db:3306)/xueju", JWTSecret: strings.Repeat("s", 32),
-		WechatAppID: "wx-app", WechatAppSecret: "secret", ContentSecurity: true, ContentSecurityProvider: "aliyun",
-		AdminUsername: "operator", AdminPassword: "a-long-admin-password", PublicBaseURL: "https://api.example.com",
+		WechatAppID: "wx-app", WechatAppSecret: "secret", ContentSecurity: true, ContentSecurityProvider: "wechat",
+		MediaCallbackToken: strings.Repeat("t", 32),
+		AdminUsername:      "operator", AdminPassword: "a-long-admin-password", PublicBaseURL: "https://api.example.com",
 		StorageDriver: "s3", S3Endpoint: "https://storage.example.com", S3Bucket: "xueju", S3Region: "cn-north-1", S3AccessKey: "key", S3SecretKey: "secret",
 		AliyunAccessKeyID: "ram-key", AliyunAccessKeySecret: "ram-secret", AliyunSmsSignName: "sign", AliyunSmsTemplateCode: "100001",
-		AliyunContentAccessKeyID: "content-key", AliyunContentAccessKeySecret: "content-secret", AliyunContentEndpoint: "green-cip.cn-shanghai.aliyuncs.com",
-		AliyunTextService: "ugc_moderation_byllm_pro", AliyunAvatarImageService: "profilePhotoCheck", AliyunEventImageService: "postImageCheck",
 		PhoneEncryptionKey: strings.Repeat("e", 32), PhoneHashSecret: strings.Repeat("h", 32),
 	}
 }
@@ -29,6 +28,14 @@ func TestValidateRejectsProductionDefaults(t *testing.T) {
 func TestValidateAcceptsHardenedProductionConfig(t *testing.T) {
 	if err := validProductionConfig().Validate(); err != nil {
 		t.Fatalf("unexpected validation error: %v", err)
+	}
+}
+
+func TestValidateRejectsAliyunAsProductionContentSecurityProvider(t *testing.T) {
+	cfg := validProductionConfig()
+	cfg.ContentSecurityProvider = "aliyun"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "must be wechat") {
+		t.Fatalf("expected production to require WeChat content security, got %v", err)
 	}
 }
 

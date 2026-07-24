@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"xueju/backend/internal/compliance"
 )
 
 const (
@@ -53,5 +54,5 @@ func Error(c *gin.Context, httpStatus int, code interface{}, message string) {
 }
 
 func ContentRisk(c *gin.Context) {
-	Error(c, http.StatusBadRequest, CodeContentRisk, "内容可能包含不适宜信息，请修改后重试")
+	Error(c, http.StatusBadRequest, CodeContentRisk, compliance.ContentRiskMessage)
 }

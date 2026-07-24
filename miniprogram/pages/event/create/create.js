@@ -45,15 +45,15 @@ Page({
     editMode: false,
     submitting: false,
     form: {
-      resort: '崇礼 · 万龙滑雪场',
-      resortId: 1,
+      resort: '',
+      resortId: 0,
       date: '',
-      depart: '北京朝阳',
-      departCity: '北京',
-      departArea: '朝阳',
-      time: '06:30',
-      meetPlace: '朝阳大悦城停车场',
-      people: 4,
+      depart: '',
+      departCity: '',
+      departArea: '',
+      time: '',
+      meetPlace: '',
+      people: 1,
       image: '',
       imageUrl: '',
       note: '',
@@ -76,7 +76,6 @@ Page({
     ],
     dateStart: '',
     dateEnd: '',
-    times: ['06:30', '07:00', '07:20', '08:00'],
     boards: ['单板', '双板', '都可以'],
     levels: ['新手', '初级', '中级', '高级'],
     styles: ['刷道', '练习', '平花', '刻滑', '公园', '拍照', '休闲滑'],
@@ -106,9 +105,7 @@ Page({
       if (resorts.length) {
         this.setData({
           resorts: resorts.map((item) => item.name),
-          resortOptions: resorts,
-          'form.resort': resorts[0].name,
-          'form.resortId': resorts[0].id
+          resortOptions: resorts
         })
       }
     } catch (error) {}
@@ -184,6 +181,9 @@ Page({
   onDateChange(event) {
     this.setData({ 'form.date': event.detail.value })
   },
+  onTimeChange(event) {
+    this.setData({ 'form.time': event.detail.value })
+  },
   onDepartInput(event) {
     const depart = event.detail.value
     const parsed = splitDepart(depart)
@@ -255,7 +255,7 @@ Page({
 	  wx.showToast({ title: '集合时间已过，请选择未来的日期或时间', icon: 'none' })
 	  return
 	}
-    if (!f.resort || !f.date || !f.depart || !f.meetPlace) {
+    if (!f.resort || !f.date || !f.depart || !f.time || !f.meetPlace) {
       wx.showToast({ title: '请完善基本信息', icon: 'none' })
       return
     }

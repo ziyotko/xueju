@@ -141,6 +141,7 @@ const enumLabels: Record<string, string> = {
   sms_code: "短信验证码",
   sms_phone: "手机号短信认证",
   phone_sms: "短信验证码",
+  wechat: "微信内容安全",
   aliyun: "阿里云",
   aliyun_sms: "阿里云短信",
   aliyun_sms_auth: "阿里云短信认证",

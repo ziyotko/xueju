@@ -1,7 +1,20 @@
 {
   "description": "雪局滑雪行程组局工具",
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "miniprogram_npm/tdesign-miniprogram/qrcode"
+      },
+      {
+        "type": "folder",
+        "value": "miniprogram_npm/tdesign-miniprogram/upload"
+      },
+      {
+        "type": "folder",
+        "value": "miniprogram_npm/tdesign-miniprogram/chat-sender"
+      }
+    ],
     "include": []
   },
   "setting": {

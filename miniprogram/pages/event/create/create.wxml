@@ -18,28 +18,30 @@
       </view>
     </view>
     <picker mode="selector" range="{{resorts}}" data-key="resort" data-list="resorts" bindchange="setPicker">
-      <view class="form-row"><text>目的地</text><view class="row-value"><text>{{form.resort}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+      <view class="form-row"><text class="form-label">目的地</text><view class="row-value {{form.resort ? 'has-value' : ''}}"><text>{{form.resort || '请选择'}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
     </picker>
     <picker mode="date" value="{{form.date}}" start="{{dateStart}}" end="{{dateEnd}}" bindchange="onDateChange">
-      <view class="form-row"><text>出发日期</text><view class="row-value"><text>{{form.date || '请选择'}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+      <view class="form-row"><text class="form-label">出发日期</text><view class="row-value {{form.date ? 'has-value' : ''}}"><text>{{form.date || '请选择'}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
     </picker>
     <view class="form-row">
-      <text>出发地</text>
-      <input class="form-input" value="{{form.depart}}" data-key="depart" bindinput="onDepartInput" maxlength="128" placeholder="例如：北京朝阳" />
+      <text class="form-label">出发地</text>
+      <input class="form-input" value="{{form.depart}}" data-key="depart" bindinput="onDepartInput" maxlength="128" placeholder="请输入" placeholder-class="form-input-placeholder" />
     </view>
-    <picker mode="selector" range="{{times}}" data-key="time" data-list="times" bindchange="setPicker">
-      <view class="form-row"><text>集合时间</text><view class="row-value"><text>{{form.time}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
+    <picker mode="time" value="{{form.time}}" bindchange="onTimeChange">
+      <view class="form-row"><text class="form-label">集合时间</text><view class="row-value {{form.time ? 'has-value' : ''}}"><text>{{form.time || '请选择'}}</text><app-icon name="chevron-right" size="20" color="#A0A8B9" /></view></view>
     </picker>
     <view class="form-row">
-      <text>集合地点</text>
-      <input class="form-input" value="{{form.meetPlace}}" data-key="meetPlace" bindinput="onFormInput" maxlength="255" placeholder="例如：朝阳大悦城停车场" />
+      <text class="form-label">集合地点</text>
+      <input class="form-input" value="{{form.meetPlace}}" data-key="meetPlace" bindinput="onFormInput" maxlength="255" placeholder="请输入" placeholder-class="form-input-placeholder" />
     </view>
     <view class="form-row people-row">
-      <text>总人数</text>
-      <view class="people-control">
-        <t-stepper value="{{form.people}}" min="{{1}}" max="{{20}}" theme="filled" size="small" disable-input bind:change="onPeopleChange" />
+      <text class="form-label">总人数</text>
+      <view class="people-value">
+        <view class="people-control">
+          <t-stepper value="{{form.people}}" min="{{1}}" max="{{20}}" theme="filled" size="small" disable-input bind:change="onPeopleChange" />
+        </view>
+        <text class="people-hint">包含发起人</text>
       </view>
-      <text class="people-hint">包含发起人</text>
     </view>
   </view>
 

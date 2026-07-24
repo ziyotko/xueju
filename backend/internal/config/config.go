@@ -124,17 +124,11 @@ func (c Config) Validate() error {
 	if !c.ContentSecurity {
 		problems = append(problems, "CONTENT_SECURITY_ENABLED must be true")
 	} else {
-		switch c.ContentSecurityProvider {
-		case "aliyun":
-			if c.AliyunContentAccessKeyID == "" || c.AliyunContentAccessKeySecret == "" || c.AliyunContentEndpoint == "" || c.AliyunTextService == "" || c.AliyunAvatarImageService == "" || c.AliyunEventImageService == "" {
-				problems = append(problems, "Aliyun content security credentials, endpoint and service codes are required")
-			}
-		case "wechat":
-			if len(c.MediaCallbackToken) < 24 {
-				problems = append(problems, "WECHAT_MEDIA_CALLBACK_TOKEN must be at least 24 characters")
-			}
-		default:
-			problems = append(problems, "CONTENT_SECURITY_PROVIDER must be aliyun or wechat")
+		if c.ContentSecurityProvider != "wechat" {
+			problems = append(problems, "CONTENT_SECURITY_PROVIDER must be wechat in production")
+		}
+		if len(c.MediaCallbackToken) < 24 {
+			problems = append(problems, "WECHAT_MEDIA_CALLBACK_TOKEN must be at least 24 characters")
 		}
 	}
 	if c.AdminUsername == "admin" || c.AdminPassword == "xueju-admin" || len(c.AdminPassword) < 12 {

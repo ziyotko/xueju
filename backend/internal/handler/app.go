@@ -262,7 +262,12 @@ func (h *AppHandler) UpdateMe(c *gin.Context) {
 		add("style_tags", string(value))
 	}
 	if req.FavoriteResorts != nil {
-		value, _ := json.Marshal(h.cleanTexts(*req.FavoriteResorts))
+		cleaned := h.cleanTexts(*req.FavoriteResorts)
+		if err := h.checkText(c.Request.Context(), userID, compliance.FieldUserBio, strings.Join(cleaned, " ")); err != nil {
+			h.contentError(c, err)
+			return
+		}
+		value, _ := json.Marshal(cleaned)
 		add("favorite_resorts", string(value))
 	}
 	if req.HasCar != nil {
@@ -486,7 +491,7 @@ func (h *AppHandler) CreateEvent(c *gin.Context) {
 		h.contentError(c, err)
 		return
 	}
-	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, strings.Join([]string{req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, strings.Join(req.PurposeTags, " ")}, " ")); err != nil {
+	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, strings.Join([]string{req.ResortName, req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, strings.Join(req.PurposeTags, " ")}, " ")); err != nil {
 		h.contentError(c, err)
 		return
 	}
@@ -645,38 +650,56 @@ func (h *AppHandler) uploadImage(c *gin.Context, userID int64, folder string) {
 }
 
 func (h *AppHandler) MediaReviewCallback(c *gin.Context) {
+	timestamp := c.Query("timestamp")
+	nonce := c.Query("nonce")
+	signature := c.Query("signature")
+	if !contentsecurity.VerifyCallbackSignature(h.cfg.MediaCallbackToken, timestamp, nonce, signature) {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid callback signature")
+		return
+	}
+	if c.Request.Method == http.MethodGet {
+		echo := c.Query("echostr")
+		if echo == "" {
+			response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "missing callback echo")
+			return
+		}
+		c.String(http.StatusOK, echo)
+		return
+	}
 	if !h.requireDB(c) {
 		return
 	}
-	provided := c.GetHeader("X-Callback-Token")
-	if provided == "" {
-		provided = c.Query("token")
-	}
-	if h.cfg.MediaCallbackToken == "" || provided != h.cfg.MediaCallbackToken {
-		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "invalid callback token")
+	if c.Query("encrypt_type") == "aes" || c.Query("msg_signature") != "" {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "encrypted media callbacks are not supported")
 		return
 	}
-	var payload struct {
-		TraceID string `json:"trace_id"`
-		Suggest string `json:"suggest"`
-		Result  struct {
-			Suggest string `json:"suggest"`
-			Label   int    `json:"label"`
-		} `json:"result"`
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "cannot read media callback")
+		return
 	}
-	if err := c.ShouldBindJSON(&payload); err != nil || payload.TraceID == "" {
+	payload, err := contentsecurity.ParseMediaCallback(body)
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "invalid media callback")
 		return
 	}
-	suggest := payload.Result.Suggest
-	if suggest == "" {
-		suggest = payload.Suggest
+	if payload.AppID != "" && payload.AppID != h.cfg.WechatAppID {
+		response.Error(c, http.StatusUnauthorized, response.CodeUnauthorized, "callback appid mismatch")
+		return
 	}
-	status := "rejected"
-	if suggest == "pass" {
+	if payload.Event != "" && !strings.EqualFold(payload.Event, "wxa_media_check") {
+		response.Error(c, http.StatusBadRequest, response.CodeBadRequest, "unexpected callback event")
+		return
+	}
+	suggest := payload.ModerationSuggestion()
+	status := string(compliance.ModerationPending)
+	switch suggest {
+	case "pass":
 		status = "approved"
+	case "risky":
+		status = "rejected"
 	}
-	result, err := h.db.Exec(`UPDATE media_uploads SET status=?, review_result=? WHERE trace_id=? AND status='pending'`, status, suggest, payload.TraceID)
+	result, err := h.db.Exec(`UPDATE media_uploads SET status=?, review_result=? WHERE trace_id=? AND status='pending'`, status, "wechat:"+suggest, payload.TraceID)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, response.CodeServerError, err.Error())
 		return
@@ -685,7 +708,7 @@ func (h *AppHandler) MediaReviewCallback(c *gin.Context) {
 		response.Error(c, http.StatusNotFound, response.CodeNotFound, "pending media not found")
 		return
 	}
-	response.Success(c, gin.H{"status": status})
+	c.String(http.StatusOK, "success")
 }
 
 func (h *AppHandler) UploadStatus(c *gin.Context) {
@@ -701,7 +724,14 @@ func (h *AppHandler) UploadStatus(c *gin.Context) {
 		h.sqlError(c, err)
 		return
 	}
-	data := gin.H{"id": mustInt64(c.Param("id")), "status": status, "result": result}
+	publicResult := ""
+	switch status {
+	case string(compliance.ModerationRejected):
+		publicResult = compliance.ContentRiskMessage
+	case string(compliance.ModerationPending):
+		publicResult = "图片正在进行安全审核"
+	}
+	data := gin.H{"id": mustInt64(c.Param("id")), "status": status, "result": publicResult}
 	if status == "approved" {
 		data["url"] = publicURL
 	}
@@ -789,7 +819,7 @@ func (h *AppHandler) UpdateEvent(c *gin.Context) {
 		h.contentError(c, err)
 		return
 	}
-	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, strings.Join([]string{req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, strings.Join(req.PurposeTags, " ")}, " ")); err != nil {
+	if err := h.checkText(c.Request.Context(), userID, compliance.FieldEventRemark, strings.Join([]string{req.ResortName, req.DepartCity, req.DepartArea, req.MeetPlace, req.CostDesc, strings.Join(req.PurposeTags, " ")}, " ")); err != nil {
 		h.contentError(c, err)
 		return
 	}

@@ -1,6 +1,6 @@
 package compliance
 
-const ContentRiskMessage = "内容可能包含不适宜信息，请修改后重试"
+const ContentRiskMessage = "你发布的内容含有违规信息，请修改后重试"
 
 type TextField string
 
